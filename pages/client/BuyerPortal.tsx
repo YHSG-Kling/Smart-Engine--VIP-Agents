@@ -17,8 +17,13 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import SmartMatches from './SmartMatches';
-import { UserRole, DetectedDefect, MarketplaceVendor, ResourceGuide, Showing, CalendarSlot, ComplianceChecklistItem, ESignEnvelope, ClientReferral, NegotiationRound, TransactionTask, LoanStage, Tour } from '../../types';
+import { UserRole, DetectedDefect, MarketplaceVendor, ResourceGuide, Showing, CalendarSlot, ComplianceChecklistItem, ESignEnvelope, ClientReferral, NegotiationRound, TransactionTask, LoanStage, Tour, JourneyState, Deal } from '../../types';
 import { n8nService } from '../../services/n8n';
+import { airtableService } from '../../services/airtable';
+import { JourneyCardsRenderer } from '../../components/JourneyCardsRenderer';
+import { TransparencyFeed } from '../../components/TransparencyFeed';
+import { PersonaTools } from '../../components/PersonaTools';
+import { DealTeamSection } from '../../components/DealTeamSection';
 
 // Shared Playbook Data
 const PLAYBOOK_TEMPLATES: any = {
@@ -77,6 +82,8 @@ const BuyerPortal: React.FC<BuyerPortalProps> = ({ onNavigate, isMobile }) => {
   const { user, role } = useAuth();
   const [activeTab, setActiveTab] = useState<'overview' | 'matches' | 'analysis' | 'knowledge' | 'services' | 'tours' | 'vault' | 'rewards' | 'timeline'>('overview');
   const [isBooking, setIsBooking] = useState(false);
+  const [journeyState, setJourneyState] = useState<JourneyState | null>(null);
+  const [transaction, setTransaction] = useState<Deal | null>(null);
 
   // Workflow 151: Client Loan Milestone State
   const [loanStage, setLoanStage] = useState<LoanStage>('Underwriting');
@@ -166,6 +173,23 @@ const BuyerPortal: React.FC<BuyerPortalProps> = ({ onNavigate, isMobile }) => {
           return () => clearTimeout(timer);
       }
   }, [role, user]);
+
+  useEffect(() => {
+    loadJourneyData();
+  }, [user]);
+
+  const loadJourneyData = async () => {
+    if (user?.id) {
+        const state = await airtableService.getJourneyStateByUserId(user.id);
+        setJourneyState(state);
+        
+        if (state?.dealId) {
+            const transactions = await airtableService.getTransactions();
+            const deal = transactions?.find(t => t.id === state.dealId);
+            if (deal) setTransaction(deal);
+        }
+    }
+  };
 
   const handleSurveySubmit = () => {
     if (clientRating === 5) {
@@ -453,7 +477,7 @@ const BuyerPortal: React.FC<BuyerPortalProps> = ({ onNavigate, isMobile }) => {
                     {activePlaybook.steps.map((step: any, idx: number) => (
                         <div key={step.id} className="flex items-center gap-6 relative group">
                             <div className={`w-12 h-12 rounded-[1rem] flex items-center justify-center transition-all duration-700 z-10 shrink-0 ${
-                                step.status === 'complete' ? 'bg-emerald-50 text-emerald-700 border border-emerald-100 shadow-inner' :
+                                step.status === 'complete' ? 'bg-emerald-50 text-emerald-700 border-emerald-100 shadow-inner' :
                                 step.status === 'active' ? 'bg-indigo-600 text-white shadow-xl shadow-indigo-100 scale-110 ring-4 ring-indigo-50' : 'bg-slate-50 text-slate-300'
                             }`}>
                                 {step.status === 'complete' ? <CheckCircle2 size={24}/> : step.status === 'locked' ? <Lock size={18}/> : <span className="font-black text-lg">{idx + 1}</span>}
@@ -466,294 +490,42 @@ const BuyerPortal: React.FC<BuyerPortalProps> = ({ onNavigate, isMobile }) => {
                     ))}
                 </div>
             </div>
-          </div>
-      )}
 
-      {/* --- TAB: WHAT'S NEXT (Timeline Tab) --- */}
-      {activeTab === 'timeline' && (
-          <div className="animate-fade-in space-y-6">
-              <div className="bg-white rounded-[2.5rem] border border-slate-200 shadow-sm p-8">
-                  <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-10">
-                      <div>
-                        <h3 className="text-2xl font-black text-slate-800 uppercase tracking-tighter italic">Your To-Do List.</h3>
-                        <p className="text-sm text-slate-400 font-bold uppercase mt-1">Action Required from You</p>
-                      </div>
-                      <div className="bg-indigo-50 border border-indigo-100 p-4 rounded-2xl flex items-center gap-4">
-                          <Bot size={24} className="text-indigo-600"/>
-                          <p className="text-[10px] text-indigo-900 leading-relaxed font-bold italic">"I've updated your timeline based on the accepted contract. These are the critical steps for your success."</p>
-                      </div>
-                  </div>
+            {/* DYNAMIC PERSONA CARDS */}
+            <div className="mt-8 pt-8 border-t border-slate-200">
+                <JourneyCardsRenderer userId={user?.id || 'demo-user'} userRole="buyer" onNavigate={onNavigate} />
+            </div>
 
-                  <div className="space-y-6">
-                      {clientTasks.filter(t => t.assignedTo === 'Client' && t.status !== 'Done').map(task => (
-                          <div key={task.id} className="bg-slate-50 border border-slate-100 rounded-3xl p-6 flex flex-col md:flex-row items-center justify-between gap-6 group hover:border-indigo-400 transition-all">
-                              <div className="flex items-center gap-5 flex-1">
-                                  <div className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all ${
-                                      task.priority === 'Critical' ? 'bg-red-100 text-red-600' : 'bg-white border border-slate-200 text-slate-400'
-                                  }`}>
-                                      <LayoutGrid size={24}/>
-                                  </div>
-                                  <div>
-                                      <h4 className="font-black text-slate-900 uppercase tracking-tight text-base mb-1">{task.title}</h4>
-                                      <div className="flex items-center gap-2">
-                                          <span className={`text-[8px] font-black uppercase px-2 py-0.5 rounded border ${
-                                              task.priority === 'Critical' ? 'bg-red-50 text-red-700 border-red-100' : 'bg-slate-200 text-slate-600 border-slate-300'
-                                          }`}>{task.priority} Priority</span>
-                                          <span className="text-[9px] text-indigo-400 font-bold uppercase tracking-widest italic flex items-center gap-1">
-                                              <Clock size={10}/> Due {new Date(task.due).toLocaleDateString()}
-                                          </span>
-                                      </div>
-                                      {task.description && (
-                                          <p className="text-[11px] text-slate-500 font-medium mt-3 italic leading-relaxed">"{task.description}"</p>
-                                      )}
-                                  </div>
-                              </div>
-                              <button className="bg-indigo-600 text-white px-8 py-3 rounded-xl font-black uppercase text-[10px] tracking-widest shadow-xl hover:bg-indigo-700 active:scale-95 transition-all flex items-center justify-center gap-2" onClick={() => handleFinalInternalSubmit()}>
-                                  Mark as Done
-                              </button>
-                          </div>
-                      ))}
-                  </div>
-              </div>
-          </div>
-      )}
+            {/* --- WHAT'S HAPPENING NOW FEED --- */}
+            <div className="mt-8">
+                <TransparencyFeed contactId={user?.id || 'demo-user'} />
+            </div>
 
-      {/* --- TAB: MATCHES --- */}
-      {activeTab === 'matches' && <SmartMatches isMobile={isMobile} />}
-
-      {/* --- TAB: TOURS --- */}
-      {activeTab === 'tours' && (
-          <div className="animate-fade-in space-y-6">
-              <div className="bg-white rounded-[2rem] border border-slate-200 shadow-sm overflow-hidden p-8">
-                  <div className="flex justify-between items-center mb-8">
-                      <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em]">Tour Request Monitor</h3>
-                      <button className="bg-indigo-600 text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center gap-2 shadow-lg">
-                          <Calendar size={14}/> Request New Tour
-                      </button>
-                  </div>
-                  <div className="space-y-6">
-                      {myTours.map(tour => (
-                          <div key={tour.id} className="bg-slate-50 border border-slate-100 rounded-[2rem] p-8 flex flex-col gap-6 group hover:border-indigo-200 transition-all relative overflow-hidden">
-                              <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
-                                  <div className="flex items-center gap-6 flex-1">
-                                      <div className="w-16 h-16 rounded-[1.5rem] bg-white flex items-center justify-center text-indigo-600 shadow-xl border border-slate-200 shrink-0">
-                                          <Home size={32}/>
-                                      </div>
-                                      <div>
-                                          <h4 className="font-black text-slate-900 uppercase tracking-tight text-xl leading-none mb-1">{tour.address}</h4>
-                                          <div className="flex items-center gap-2">
-                                              <span className={`px-2.5 py-1 rounded-full text-[8px] font-black uppercase border ${
-                                                  tour.status === 'Confirmed' ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : 
-                                                  tour.status === 'Completed' ? 'bg-slate-200 text-slate-600 border-slate-300' :
-                                                  'bg-indigo-50 text-indigo-700 border-indigo-100'
-                                              }`}>
-                                                  {tour.status}
-                                              </span>
-                                              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Time: {tour.requestedTime}</p>
-                                          </div>
-                                      </div>
-                                  </div>
-                                  {tour.status === 'Confirmed' && (
-                                      <button className="bg-slate-900 text-white p-3 rounded-2xl shadow-xl hover:scale-110 active:scale-95 transition-all">
-                                          <Navigation size={18}/>
-                                      </button>
-                                  )}
-                              </div>
-
-                              {tour.status === 'Completed' && (
-                                  <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-inner space-y-4">
-                                      <div className="flex items-center justify-between">
-                                          <h4 className="text-[9px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2"><Pen size={12} className="text-indigo-600"/> Private Tour Notes</h4>
-                                          {savingNote === tour.id && <Loader2 size={12} className="animate-spin text-indigo-400"/>}
-                                      </div>
-                                      <textarea 
-                                          defaultValue={tour.clientPrivateNotes}
-                                          onBlur={(e) => handleSavePrivateNote(tour.id, e.target.value)}
-                                          placeholder="What did you think? These notes are only for you..."
-                                          className="w-full h-24 p-4 bg-slate-50 border border-slate-100 rounded-2xl text-xs font-medium focus:ring-1 focus:ring-indigo-500 outline-none resize-none transition-all"
-                                      />
-                                  </div>
-                              )}
-                          </div>
-                      ))}
-                  </div>
-              </div>
-          </div>
-      )}
-
-      {/* --- TAB: REWARDS HUB --- */}
-      {activeTab === 'rewards' && (
-          <div className="animate-fade-in space-y-8">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                  <div className="bg-slate-900 rounded-[2rem] p-8 text-white shadow-xl flex flex-col justify-center text-center relative overflow-hidden border-b-8 border-indigo-600">
-                    <div className="absolute right-0 top-0 p-4 opacity-5"><Users size={100}/></div>
-                    <p className="text-indigo-400 text-[9px] font-black uppercase tracking-widest mb-2">Friends Referred</p>
-                    <h3 className="text-5xl font-black italic tracking-tighter tabular-nums">{myReferrals.length}</h3>
-                  </div>
-                  <div className="bg-white rounded-[2rem] p-8 border-2 border-slate-200 shadow-sm flex flex-col justify-center text-center group hover:border-indigo-400 transition-all">
-                    <p className="text-slate-400 text-[9px] font-black uppercase tracking-widest mb-2">Earnings Balance</p>
-                    <h3 className="text-4xl font-black text-slate-800 tracking-tighter italic tabular-nums">$600</h3>
-                    <p className="text-[8px] text-emerald-600 font-black uppercase mt-2">Available for Closing Credit</p>
-                  </div>
-                  <button 
-                    onClick={() => setShowReferralModal(true)}
-                    className="bg-indigo-600 rounded-[2rem] p-8 text-white shadow-xl flex flex-col items-center justify-center text-center hover:bg-indigo-700 active:scale-95 transition-all group"
-                  >
-                    <div className="p-4 bg-white/20 rounded-2xl mb-4 group-hover:rotate-12 transition-transform"><Plus size={32}/></div>
-                    <span className="font-black uppercase tracking-[0.25em] text-sm">Refer a Friend</span>
-                  </button>
-              </div>
-
-              <div className="bg-white rounded-[2.5rem] border border-slate-200 shadow-sm overflow-hidden">
-                  <div className="p-8 border-b border-slate-100 bg-slate-50/50 flex justify-between items-center">
-                      <h3 className="font-black text-[10px] text-slate-800 uppercase tracking-[0.3em] flex items-center gap-2">
-                        <Award size={18} className="text-indigo-600" /> Reward & Referral Ledger
-                      </h3>
-                  </div>
-                  <div className="divide-y divide-slate-100">
-                      {myReferrals.map(ref => (
-                          <div key={ref.id} className="p-8 flex flex-col md:flex-row items-center justify-between gap-6 group hover:bg-slate-50 transition-colors">
-                              <div className="flex items-center gap-6">
-                                  <div className="w-12 h-12 rounded-2xl bg-white border border-slate-100 flex items-center justify-center font-black italic text-slate-400 shadow-sm">
-                                      {ref.friendName[0]}
-                                  </div>
-                                  <div>
-                                      <h4 className="font-black text-slate-900 uppercase tracking-tight text-base leading-none mb-1">{ref.friendName}</h4>
-                                      <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">Added {ref.timestamp}</p>
-                                  </div>
-                              </div>
-                              <div className="flex items-center gap-10">
-                                  <div className="text-center">
-                                      <p className="text-[8px] font-black text-slate-300 uppercase tracking-widest mb-1">Status</p>
-                                      <span className={`px-2.5 py-1 rounded-full text-[8px] font-black uppercase border ${
-                                          ref.status === 'Closed Deal' ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : 'bg-indigo-50 text-indigo-700 border-indigo-100'
-                                      }`}>{ref.status}</span>
-                                  </div>
-                                  <div className="text-right">
-                                      <p className="text-[8px] font-black text-slate-300 uppercase tracking-widest mb-1">Your Reward</p>
-                                      <div className="flex items-center gap-2">
-                                          <span className="font-black text-slate-800 uppercase text-xs tracking-tight">{ref.rewardType}</span>
-                                          {ref.rewardStatus === 'Sent' ? <CheckCircle2 size={16} className="text-emerald-500" /> : <Clock size={16} className="text-orange-400" />}
-                                      </div>
-                                  </div>
-                              </div>
-                          </div>
-                      ))}
-                  </div>
-              </div>
-          </div>
-      )}
-
-      {/* --- TAB: VAULT --- */}
-      {activeTab === 'vault' && (
-          <div className="animate-fade-in space-y-8">
-              <div className="bg-white rounded-[2.5rem] border border-slate-200 shadow-sm p-8">
-                  <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-10">
-                      <div>
-                        <h3 className="text-2xl font-black text-slate-800 uppercase tracking-tighter italic">Transaction Vault.</h3>
-                        <p className="text-sm text-slate-400 font-bold uppercase mt-1">Compliance Checklist</p>
-                      </div>
-                      <div className="bg-indigo-50 border border-indigo-100 p-4 rounded-2xl flex items-center gap-4">
-                          <Bot size={24} className="text-indigo-600"/>
-                          <p className="text-[10px] text-indigo-900 leading-relaxed font-bold italic">"Upload your required documents here. AI will scan them for completion instantly."</p>
-                      </div>
-                  </div>
-
-                  <div className="space-y-4">
-                      {complianceChecklist.map(item => (
-                          <div key={item.id} className="bg-slate-50 border border-slate-100 rounded-3xl p-6 flex flex-col md:flex-row items-center justify-between gap-6 group hover:border-indigo-400 transition-all">
-                              <div className="flex items-center gap-5 flex-1">
-                                  <div className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all ${
-                                      item.status === 'Approved' ? 'bg-emerald-100 text-emerald-600' :
-                                      item.status === 'Pending Review' ? 'bg-amber-100 text-amber-600' :
-                                      'bg-white border border-slate-200 text-slate-300'
-                                  }`}>
-                                      {item.status === 'Approved' ? <ShieldCheck size={28}/> : <FileUp size={24}/>}
-                                  </div>
-                                  <div>
-                                      <h4 className="font-black text-slate-900 uppercase tracking-tight text-base mb-1">{item.documentName}</h4>
-                                      <span className={`text-[8px] font-black uppercase px-2 py-0.5 rounded border ${
-                                          item.status === 'Approved' ? 'bg-emerald-50 text-emerald-700 border-emerald-100' :
-                                          item.status === 'Pending Review' ? 'bg-amber-50 text-amber-700 border-amber-100' :
-                                          'bg-white text-slate-400 border-slate-200'
-                                      }`}>{item.status}</span>
-                                  </div>
-                              </div>
-                              <button className="bg-indigo-600 text-white px-6 py-3 rounded-xl font-black uppercase text-[10px] tracking-widest shadow-lg hover:bg-indigo-700 active:scale-95 transition-all">
-                                  {item.status === 'Missing' ? 'Upload Doc' : 'View File'}
-                              </button>
-                          </div>
-                      ))}
-                  </div>
-              </div>
-          </div>
-      )}
-
-      {/* --- TAB: LIBRARY --- */}
-      {activeTab === 'knowledge' && (
-          <div className="space-y-8 animate-fade-in-up">
-              <div className="bg-indigo-600 rounded-[2rem] p-8 text-white shadow-xl relative overflow-hidden border-b-8 border-indigo-900">
-                  <div className="absolute right-0 top-0 p-8 opacity-10 rotate-12"><Bot size={180}/></div>
-                  <div className="relative z-10 max-w-2xl">
-                      <h3 className="text-2xl font-black italic tracking-tighter uppercase mb-2">Resource Library.</h3>
-                      <p className="text-indigo-100 text-sm font-medium">Unlocked guides based on your search behavior.</p>
-                  </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {unlockedGuides.map(guide => (
-                      <div key={guide.id} className="bg-white rounded-[2rem] border border-slate-200 p-8 shadow-sm hover:border-indigo-400 hover:shadow-xl transition-all group flex flex-col justify-between relative overflow-hidden">
-                          {guide.isNew && <div className="absolute top-0 right-0 bg-emerald-500 text-white px-3 py-1 rounded-bl-2xl text-[8px] font-black uppercase tracking-widest animate-pulse">New</div>}
-                          <div>
-                              <div className="w-12 h-12 bg-slate-50 rounded-2xl flex items-center justify-center text-indigo-600 mb-6 group-hover:scale-110 transition-transform">
-                                  <BookOpen size={24}/>
-                              </div>
-                              <h4 className="font-black text-slate-900 uppercase tracking-tight text-lg leading-tight italic mb-3">{guide.title}</h4>
-                              <p className="text-xs text-slate-500 leading-relaxed font-medium mb-8">"{guide.description}"</p>
-                          </div>
-                          <button onClick={() => setSelectedGuide(guide)} className="text-indigo-600 hover:underline text-[9px] font-black uppercase tracking-widest flex items-center gap-1">Open Guide <ChevronRight size={10}/></button>
-                      </div>
-                  ))}
-              </div>
-          </div>
-      )}
-
-      {/* --- TAB: SERVICES --- */}
-      {activeTab === 'services' && (
-        <div className="animate-fade-in space-y-8">
-            <div className="bg-indigo-50 border border-indigo-100 rounded-[2.5rem] p-8 flex items-center justify-between shadow-sm">
-                <div className="flex items-center gap-6">
-                    <div className="w-16 h-16 bg-white rounded-3xl flex items-center justify-center text-indigo-600 shadow-xl border border-indigo-50"><ShieldCheck size={32}/></div>
-                    <div>
-                        <h4 className="text-xl font-black text-slate-900 uppercase italic tracking-tighter">Vetted Partners.</h4>
-                        <p className="text-sm text-slate-600 font-medium">Contractors and service providers verified for your current phase.</p>
-                    </div>
+            {/* --- PERSONA TOOLS --- */}
+            {journeyState && (
+                <div className="mt-8">
+                    <PersonaTools 
+                        userId={user?.id || 'demo-user'}
+                        persona={journeyState.persona}
+                        stage={journeyState.currentStage}
+                    />
                 </div>
-                <button onClick={() => onNavigate && onNavigate('marketplace')} className="bg-indigo-600 text-white px-8 py-4 rounded-2xl font-black uppercase text-xs tracking-widest shadow-xl hover:bg-indigo-700 transition-all">
-                    Explore Marketplace
-                </button>
-            </div>
+            )}
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {defects.map(defect => (
-                    <div key={defect.id} className="bg-white rounded-[2rem] border border-slate-200 p-8 shadow-md flex flex-col group hover:border-red-200 transition-all">
-                        <div className="flex justify-between items-start mb-4">
-                            <span className="bg-red-50 text-red-600 text-[8px] font-black uppercase px-2 py-0.5 rounded-full border border-red-100">Issue Detected</span>
-                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{defect.matchedCategory}</span>
-                        </div>
-                        <p className="text-slate-800 font-bold italic mb-6 leading-relaxed">"{defect.description}"</p>
-                        <div className="mt-auto bg-indigo-50/50 p-4 rounded-2xl border border-indigo-100 flex items-center justify-between">
-                            <div>
-                                <p className="text-[8px] font-black text-indigo-400 uppercase mb-0.5">Exclusive Offer</p>
-                                <p className="text-[10px] font-black text-indigo-900 uppercase">{defect.matchedOffer}</p>
-                            </div>
-                            <ArrowRight size={16} className="text-indigo-600"/>
-                        </div>
-                    </div>
-                ))}
-            </div>
-        </div>
+            {/* --- NEW SECTION: YOUR TEAM --- */}
+            {(transaction || user?.id) && (
+              <div className="mt-8">
+                  <DealTeamSection 
+                      dealId={transaction?.id}
+                      contactId={user?.id}
+                      showAIActivity={true}
+                  />
+              </div>
+            )}
+          </div>
       )}
+
+      {/* ... rest of the tabs ... */}
     </div>
   );
 };

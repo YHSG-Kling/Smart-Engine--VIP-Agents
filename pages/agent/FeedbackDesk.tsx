@@ -20,23 +20,24 @@ const FeedbackDesk: React.FC = () => {
   const [isProcessing, setIsProcessing] = useState<string | null>(null);
   
   // Workflow 126: Feedback Inbox Data (Agent View B)
+  // Re-mapping mock data to comply with centralized ShowingFeedback interface types
   const [feedbacks, setFeedbacks] = useState<ShowingFeedback[]>([
     { 
       id: 'f1', showingId: 'sh3', address: '123 Main St', leadName: 'Charlie Day', 
       rawResponseText: 'The house was great but the kitchen feels a bit cramped for the price point. 7/10.',
-      sentimentScore: 7, keyObjections: ['Layout', 'Price'], interestLevel: 'Warm',
+      sentimentScore: 7, keyObjections: ['Layout', 'Price'], interestLevel: 'somewhat_interested',
       publishedToSeller: false, timestamp: '10 mins ago' 
     },
     { 
       id: 'f2', showingId: 'sh4', address: '789 Skyline Dr', leadName: 'Diane Court', 
       rawResponseText: 'Stunning view. We are ready to make an offer. 10/10.',
-      sentimentScore: 10, keyObjections: [], interestLevel: 'Hot',
+      sentimentScore: 10, keyObjections: [], interestLevel: 'very_interested',
       publishedToSeller: true, timestamp: '2h ago' 
     },
     { 
       id: 'f3', showingId: 'sh1', address: '123 Main St', leadName: 'Alice Freeman', 
       rawResponseText: 'Did not like the neighborhood. Too noisy. 4/10.',
-      sentimentScore: 4, keyObjections: ['Location'], interestLevel: 'Cold',
+      sentimentScore: 4, keyObjections: ['Location'], interestLevel: 'not_interested',
       publishedToSeller: false, timestamp: '1d ago' 
     },
   ]);
@@ -119,10 +120,10 @@ const FeedbackDesk: React.FC = () => {
                   <div className="divide-y divide-slate-100">
                       {feedbacks.map(f => (
                           <div key={f.id} className="p-8 hover:bg-slate-50 transition-all group flex flex-col lg:flex-row justify-between items-start lg:items-center gap-8">
-                              <div className="flex items-center gap-6 flex-1">
+                              <div className="flex items-center gap-6 flex-1 min-w-0">
                                   <div className={`w-14 h-14 rounded-2xl flex items-center justify-center font-black text-xl border-2 transition-all ${
-                                      f.sentimentScore >= 8 ? 'bg-emerald-50 text-emerald-600 border-emerald-100' :
-                                      f.sentimentScore >= 5 ? 'bg-blue-50 text-blue-600 border-blue-100' :
+                                      (f.sentimentScore || 0) >= 8 ? 'bg-emerald-50 text-emerald-700 border-emerald-100' :
+                                      (f.sentimentScore || 0) >= 5 ? 'bg-blue-50 text-blue-600 border-blue-100' :
                                       'bg-red-50 text-red-600 border-red-100'
                                   }`}>
                                       {f.sentimentScore}
@@ -134,14 +135,14 @@ const FeedbackDesk: React.FC = () => {
                                       </div>
                                       <p className="text-xs text-slate-600 font-medium italic leading-relaxed mb-3">"{f.rawResponseText}"</p>
                                       <div className="flex flex-wrap gap-2">
-                                          <span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase ${
-                                              f.interestLevel === 'Hot' ? 'bg-red-100 text-red-700' :
-                                              f.interestLevel === 'Warm' ? 'bg-orange-100 text-orange-700' :
+                                          <span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase border ${
+                                              f.interestLevel === 'very_interested' || f.interestLevel === 'Hot' ? 'bg-red-100 text-red-700' :
+                                              f.interestLevel === 'somewhat_interested' || f.interestLevel === 'Warm' ? 'bg-orange-100 text-orange-700' :
                                               'bg-slate-100 text-slate-500'
                                           }`}>
-                                              {f.interestLevel}
+                                              {f.interestLevel?.replace('_', ' ')}
                                           </span>
-                                          {f.keyObjections.map(obj => (
+                                          {f.keyObjections?.map(obj => (
                                               <span key={obj} className="bg-slate-100 text-slate-500 px-2 py-0.5 rounded text-[8px] font-black uppercase">Objection: {obj}</span>
                                           ))}
                                       </div>
@@ -150,12 +151,12 @@ const FeedbackDesk: React.FC = () => {
 
                               <div className="flex items-center gap-4 shrink-0 w-full lg:w-auto">
                                   {f.publishedToSeller ? (
-                                      <div className="flex-1 lg:flex-none flex items-center justify-center gap-2 px-6 py-3 bg-emerald-50 text-emerald-700 rounded-2xl font-black text-[10px] uppercase tracking-widest border border-emerald-100 shadow-sm">
+                                      <div className="flex-1 lg:flex-none flex items-center justify-center gap-2 px-6 py-3 bg-emerald-50 text-emerald-700 rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg">
                                           <ShieldCheck size={14}/> Published
                                       </div>
                                   ) : (
                                       <button 
-                                        onClick={() => handlePublish(f.id)}
+                                        onClick={() => handlePublish(f.id!)}
                                         disabled={isProcessing === f.id}
                                         className="flex-1 lg:flex-none bg-indigo-600 text-white px-6 py-3 rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-xl hover:bg-indigo-700 transition-all flex items-center justify-center gap-2 active:scale-95 disabled:opacity-50"
                                       >

@@ -4,10 +4,11 @@ import {
   Home, MapPin, Loader2, CheckCircle2, 
   FileText, Camera, Wand2, ArrowRight, Sparkles,
   Info, RefreshCw, Bot, Plus, Trash2, LayoutList,
-  ChevronRight, Building, ShieldCheck
+  ChevronRight, Building, ShieldCheck, X
 } from 'lucide-react';
 import { n8nService } from '../../services/n8n';
 import { GoogleGenAI } from "@google/genai";
+import { ComplianceCheckedTextArea } from '../../components/AI/ComplianceCheckedTextArea';
 
 const ListingIntake: React.FC = () => {
   const [step, setStep] = useState(1);
@@ -116,7 +117,7 @@ const ListingIntake: React.FC = () => {
     <div className="max-w-4xl mx-auto space-y-8 animate-fade-in pb-20">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-slate-200 pb-6">
         <div>
-          <h2 className="text-2xl font-black text-slate-800 uppercase italic tracking-tighter">Listing Ingest.</h2>
+          <h2 className="text-2xl font-black text-slate-800 uppercase italic tracking-tighter leading-none">Listing Ingest.</h2>
           <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest mt-1">Workflow 111: "Instant Ingest" AI Protocol</p>
         </div>
         <div className="flex gap-2">
@@ -245,25 +246,19 @@ const ListingIntake: React.FC = () => {
             </div>
 
             <div className="flex-1 space-y-4 mb-8">
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Teaser Narrative Output</label>
-                <textarea 
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Teaser Narrative Output (Fair Housing Verified)</label>
+                <ComplianceCheckedTextArea
                     value={propertyData.description}
-                    onChange={(e) => setPropertyData({...propertyData, description: e.target.value})}
+                    onChange={(val) => setPropertyData({...propertyData, description: val})}
+                    onSend={handleSubmitForApproval}
+                    contentType="listing_description"
                     placeholder="Awaiting AI generation protocol..."
-                    className="w-full flex-1 p-6 bg-slate-50 border border-slate-200 rounded-[2rem] text-sm font-medium text-slate-700 leading-relaxed focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner resize-none min-h-[200px]"
+                    sendLabel="Submit for Compliance Review"
                 />
             </div>
 
             <div className="mt-auto flex flex-col sm:flex-row justify-between items-center gap-4">
               <button onClick={() => setStep(3)} className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Back to Vision</button>
-              <button 
-                onClick={handleSubmitForApproval}
-                disabled={isSubmitting || !propertyData.description}
-                className="w-full sm:w-auto bg-indigo-600 text-white px-10 py-5 rounded-[2rem] font-black uppercase text-xs tracking-widest shadow-2xl hover:bg-indigo-700 transition-all active:scale-95 flex items-center justify-center gap-3 border-b-4 border-indigo-900 disabled:opacity-50"
-              >
-                {isSubmitting ? <Loader2 size={18} className="animate-spin"/> : <ShieldCheck size={18}/>}
-                Submit for Compliance Review
-              </button>
             </div>
           </div>
         )}

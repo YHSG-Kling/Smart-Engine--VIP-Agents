@@ -5,12 +5,17 @@ import {
   Upload, ArrowRight, MessageSquare, Bot, AlertTriangle, 
   Briefcase, Key, RefreshCw, Users, MoreHorizontal, Map,
   Plane, TrendingUp, Home, ChevronRight, Search, Calculator, DollarSign,
-  Car, Clock, CheckSquare
+  Car, Clock, CheckSquare, Loader2, Calendar, Send, X
 } from 'lucide-react';
-import { ClientPlaybookData, PlaybookStep, UserRole } from '../../types';
+import { ClientPlaybookData, PlaybookStep, UserRole, JourneyState, Deal, Listing, ClientDocument, ShowingRequest } from '../../types';
 import { n8nService } from '../../services/n8n';
+import { airtableService } from '../../services/airtable';
 import { useAuth } from '../../contexts/AuthContext';
 import { GoogleGenAI } from "@google/genai";
+import { JourneyCardsRenderer } from '../../components/JourneyCardsRenderer';
+import { TransparencyFeed } from '../../components/TransparencyFeed';
+import { PersonaTools } from '../../components/PersonaTools';
+import { DealTeamSection } from '../../components/DealTeamSection';
 
 // --- 1. Playbook Content Definitions (Workflows 38, 39, 40, 42) ---
 
@@ -110,7 +115,7 @@ const PLAYBOOK_TEMPLATES: Record<string, ClientPlaybookData> = {
         description: 'Review offers, negotiate terms, and select the best buyer for your timeline.',
         type: 'video',
         status: 'locked',
-        videoUrl: 'https://images.unsplash.com/photo-1554224155-8d04cb21cd6c?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80'
+        videoUrl: 'https://images.unsplash.com/photo-1554224155-6726b3ff858f?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80'
       },
       {
         id: 's5',
@@ -175,7 +180,8 @@ const ClientPlaybook: React.FC = () => {
   const [activePlaybook, setActivePlaybook] = useState<ClientPlaybookData>(PLAYBOOK_TEMPLATES['buyer_first_time']);
   const [activeStepId, setActiveStepId] = useState<string>('');
   const [isProcessing, setIsProcessing] = useState(false);
-  const [heyGenModalOpen, setHeyGenModalOpen] = useState(false);
+  const [journeyState, setJourneyState] = useState<JourneyState | null>(null);
+  const [transaction, setTransaction] = useState<Deal | null>(null);
 
   // Tool State
   const [avmAddress, setAvmAddress] = useState('');
@@ -192,7 +198,25 @@ const ClientPlaybook: React.FC = () => {
       setViewMode('agent_dashboard');
     } else {
       setViewMode('client_view');
-      
+      loadPlaybookForUser();
+      loadJourneyData();
+    }
+  }, [role, user]);
+
+  const loadJourneyData = async () => {
+    if (user?.id) {
+        const state = await airtableService.getJourneyStateByUserId(user.id);
+        setJourneyState(state);
+        
+        if (state?.dealId) {
+            const transactions = await airtableService.getTransactions();
+            const deal = transactions?.find(t => t.id === state.dealId);
+            if (deal) setTransaction(deal);
+        }
+    }
+  };
+
+  const loadPlaybookForUser = () => {
       let templateId = 'buyer_first_time'; 
       let activeStepIndex = 0;
 
@@ -212,12 +236,12 @@ const ClientPlaybook: React.FC = () => {
 
       const template = PLAYBOOK_TEMPLATES[templateId];
       if (template) {
-        const updatedSteps = template.steps.map((s, i) => ({
+        const updatedSteps = template.steps.map((s: any, i: number) => ({
             ...s,
             status: i < activeStepIndex ? 'complete' : i === activeStepIndex ? 'active' : 'locked'
         }));
 
-        const completedCount = updatedSteps.filter(s => s.status === 'complete').length;
+        const completedCount = updatedSteps.filter((s: any) => s.status === 'complete').length;
         const progressPercent = Math.round((completedCount / updatedSteps.length) * 100);
 
         const updatedPlaybook: ClientPlaybookData = {
@@ -230,8 +254,7 @@ const ClientPlaybook: React.FC = () => {
         setActivePlaybook(updatedPlaybook);
         setActiveStepId(updatedPlaybook.steps[activeStepIndex]?.id || updatedPlaybook.steps[0].id);
       }
-    }
-  }, [role, user]);
+  }
 
   // --- Agent Actions ---
   const handleAssignPlaybook = (clientId: string, templateKey: string) => {
@@ -259,7 +282,7 @@ const ClientPlaybook: React.FC = () => {
         currentStepIndex: activeStepIndex 
     };
     
-    mockProgressPlaybook.steps = mockProgressPlaybook.steps.map((s, i) => ({
+    mockProgressPlaybook.steps = mockProgressPlaybook.steps.map((s: any, i: number) => ({
         ...s,
         status: i < activeStepIndex ? 'complete' : i === activeStepIndex ? 'active' : 'locked'
     }));
@@ -467,9 +490,9 @@ const ClientPlaybook: React.FC = () => {
                Timeline
              </div>
              <div className="divide-y divide-slate-100">
-                {activePlaybook.steps.map((step, index) => (
+                {activePlaybook.steps.map((step: any, index: number) => (
                   <div 
-                    key={step.id}
+                    key={step.id} 
                     onClick={() => step.status !== 'locked' && setActiveStepId(step.id)}
                     className={`p-4 flex items-center gap-3 cursor-pointer transition-colors ${
                       activeStepId === step.id ? 'bg-indigo-50/50' : 'hover:bg-slate-50'
@@ -499,8 +522,8 @@ const ClientPlaybook: React.FC = () => {
           </div>
         </div>
 
-        <div className="lg:col-span-8">
-          {activePlaybook.steps.map(step => {
+        <div className="lg:col-span-8 space-y-8">
+          {activePlaybook.steps.map((step: any) => {
             if (step.id !== activeStepId) return null;
             return (
               <div key={step.id} className="bg-white rounded-2xl shadow-lg border border-slate-200 overflow-hidden animate-fade-in-up">
@@ -606,10 +629,457 @@ const ClientPlaybook: React.FC = () => {
               </div>
             );
           })}
+
+          <div className="pt-4">
+            <JourneyCardsRenderer userId={user?.id || 'demo-user'} userRole={role === UserRole.BUYER ? 'buyer' : 'seller'} />
+          </div>
+
+          <div className="mt-8">
+            <TransparencyFeed contactId={user?.id || 'demo-user'} />
+          </div>
+
+          <div className="mt-8">
+            <PersonaTools 
+              userId={user?.id || 'demo-user'}
+              persona={journeyState?.persona || 'first_time_buyer'}
+              stage={journeyState?.currentStage || 'lead'}
+            />
+          </div>
+
+          {(transaction || user?.id) && (
+            <div className="mt-8">
+                <DealTeamSection 
+                    dealId={transaction?.id}
+                    contactId={user?.id}
+                    showAIActivity={true}
+                />
+            </div>
+          )}
+
+          {/* ===== NEW CLIENT SELF-SERVICE SECTIONS ===== */}
+          <div className="mt-8 grid grid-cols-1 md:grid-cols-2 gap-6">
+            <SelfScheduleShowings contactId={user?.id || 'demo-user'} />
+            <DocumentUpload contactId={user?.id || 'demo-user'} />
+          </div>
+          
+          <div className="mt-6">
+            <FAQChatbot contactId={user?.id || 'demo-user'} />
+          </div>
         </div>
       </div>
     </div>
   );
 };
+
+// --- NEW SELF-SERVICE COMPONENTS ---
+
+function SelfScheduleShowings({ contactId }: { contactId: string }) {
+  const [properties, setProperties] = useState<Listing[]>([]);
+  const [selectedProperty, setSelectedProperty] = useState<Listing | null>(null);
+  const [showRequestModal, setShowRequestModal] = useState(false);
+  
+  useEffect(() => {
+    loadSavedProperties();
+  }, [contactId]);
+  
+  const loadSavedProperties = async () => {
+    const saved = await airtableService.getSavedProperties(contactId);
+    setProperties(saved);
+  };
+  
+  return (
+    <div className="bg-white border border-slate-200 rounded-[1.5rem] p-6 shadow-sm">
+      <h3 className="font-bold text-slate-800 mb-4 flex items-center gap-2 uppercase tracking-tighter text-lg">
+        <Calendar className="w-5 h-5 text-indigo-600" />
+        Schedule Showings
+      </h3>
+      
+      <p className="text-sm text-slate-600 mb-6 italic font-medium leading-relaxed">
+        Found something you love? Request a private tour instantly. We'll confirm within 2 hours.
+      </p>
+      
+      {properties.length === 0 ? (
+        <p className="text-xs text-slate-400 text-center py-8 font-bold uppercase tracking-widest bg-slate-50 rounded-2xl border-2 border-dashed border-slate-100">
+          No saved properties yet.
+        </p>
+      ) : (
+        <div className="space-y-3">
+          {properties.map(property => (
+            <button
+              key={property.id}
+              onClick={() => {
+                setSelectedProperty(property);
+                setShowRequestModal(true);
+              }}
+              className="w-full p-4 bg-slate-50 rounded-2xl border border-slate-100 hover:border-indigo-400 hover:bg-white text-left transition-all group"
+            >
+              <div className="flex justify-between items-center">
+                <div>
+                  <p className="font-black text-slate-900 uppercase tracking-tight italic">{property.address}</p>
+                  <p className="text-[10px] font-bold text-indigo-600 uppercase tracking-widest mt-1">${property.price.toLocaleString()}</p>
+                </div>
+                <ArrowRight className="w-4 h-4 text-slate-300 group-hover:text-indigo-600 group-hover:translate-x-1 transition-all" />
+              </div>
+            </button>
+          ))}
+        </div>
+      )}
+      
+      {showRequestModal && selectedProperty && (
+        <ShowingRequestModal
+          property={selectedProperty}
+          contactId={contactId}
+          onClose={() => setShowRequestModal(false)}
+          onSubmit={async (requestData) => {
+            await airtableService.createShowingRequest(requestData);
+            alert('Showing request submitted! We\'ll confirm within 2 hours via SMS.');
+            setShowRequestModal(false);
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+function ShowingRequestModal({ property, contactId, onClose, onSubmit }: { property: Listing, contactId: string, onClose: () => void, onSubmit: (data: any) => Promise<void> }) {
+  const [requestedDate, setRequestedDate] = useState('');
+  const [requestedTime, setRequestedTime] = useState('');
+  const [alternateTimes, setAlternateTimes] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  
+  const handleSubmit = async () => {
+    if (!requestedDate || !requestedTime) {
+      alert('Please select a preferred date and time');
+      return;
+    }
+    
+    setIsSubmitting(true);
+    await onSubmit({
+      contactId,
+      listingId: property.id,
+      requestedDate,
+      requestedTime,
+      alternateTimes
+    });
+    setIsSubmitting(false);
+  };
+  
+  return (
+    <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md flex items-center justify-center z-[1000] p-6">
+      <div className="bg-white rounded-[2rem] p-8 max-w-md w-full shadow-2xl border border-white/20 animate-scale-in">
+        <div className="flex justify-between items-center mb-6">
+            <h3 className="text-2xl font-black uppercase tracking-tighter italic">Request Tour.</h3>
+            <button onClick={onClose} className="p-2 bg-slate-50 text-slate-400 rounded-full hover:bg-slate-100 transition-all"><X size={20}/></button>
+        </div>
+        
+        <div className="bg-indigo-50 border border-indigo-100 p-4 rounded-2xl mb-6">
+          <p className="text-[10px] font-black text-indigo-400 uppercase tracking-widest mb-1">Property</p>
+          <p className="font-black text-slate-800 uppercase tracking-tight">{property.address}</p>
+        </div>
+        
+        <div className="space-y-6">
+          <div className="space-y-1.5">
+            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block px-1">
+              Preferred Date
+            </label>
+            <input
+              type="date"
+              value={requestedDate}
+              onChange={(e) => setRequestedDate(e.target.value)}
+              min={new Date().toISOString().split('T')[0]}
+              className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl font-bold focus:ring-2 focus:ring-indigo-600 outline-none"
+            />
+          </div>
+          
+          <div className="space-y-1.5">
+            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block px-1">
+              Preferred Time
+            </label>
+            <select
+              value={requestedTime}
+              onChange={(e) => setRequestedTime(e.target.value)}
+              className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl font-bold outline-none cursor-pointer focus:ring-2 focus:ring-indigo-600"
+            >
+              <option value="">Select time...</option>
+              <option value="9:00 AM">9:00 AM</option>
+              <option value="10:00 AM">10:00 AM</option>
+              <option value="11:00 AM">11:00 AM</option>
+              <option value="12:00 PM">12:00 PM</option>
+              <option value="1:00 PM">1:00 PM</option>
+              <option value="2:00 PM">2:00 PM</option>
+              <option value="3:00 PM">3:00 PM</option>
+              <option value="4:00 PM">4:00 PM</option>
+              <option value="5:00 PM">5:00 PM</option>
+              <option value="6:00 PM">6:00 PM</option>
+            </select>
+          </div>
+          
+          <div className="space-y-1.5">
+            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block px-1">
+              Alternate Times (optional)
+            </label>
+            <textarea
+              value={alternateTimes}
+              onChange={(e) => setAlternateTimes(e.target.value)}
+              className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl font-medium text-sm h-24 resize-none shadow-inner"
+              placeholder="e.g., Also available Saturday afternoon"
+            />
+          </div>
+        </div>
+        
+        <div className="flex gap-4 mt-10">
+          <button
+            onClick={onClose}
+            className="flex-1 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-slate-600 transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleSubmit}
+            disabled={isSubmitting}
+            className="flex-[2] py-4 bg-indigo-600 text-white rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-xl hover:bg-indigo-700 transition-all border-b-4 border-indigo-950 flex items-center justify-center gap-2"
+          >
+            {isSubmitting ? <Loader2 className="animate-spin" size={14}/> : <Send size={14} />}
+            Submit Request
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function DocumentUpload({ contactId }: { contactId: string }) {
+  const [documents, setDocuments] = useState<ClientDocument[]>([]);
+  const [uploading, setUploading] = useState(false);
+  
+  useEffect(() => {
+    loadDocuments();
+  }, [contactId]);
+  
+  const loadDocuments = async () => {
+    const docs = await airtableService.getClientDocuments();
+    const myDocs = docs.filter(d => d.contactId === contactId);
+    setDocuments(myDocs);
+  };
+  
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, documentType: any) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    
+    // Validate file
+    const maxSize = 10 * 1024 * 1024; // 10MB
+    if (file.size > maxSize) {
+      alert('File too large. Max 10MB allowed for secure vault transfer.');
+      return;
+    }
+    
+    const allowedTypes = ['application/pdf', 'image/jpeg', 'image/png'];
+    if (!allowedTypes.includes(file.type)) {
+      alert('Security Protocol: Only PDF, JPG, and PNG files allowed.');
+      return;
+    }
+    
+    setUploading(true);
+    
+    try {
+      // Simulation of secure upload
+      const mockUrl = `https://storage.nexus-os.com/uploads/${Date.now()}_${file.name}`;
+      
+      // Create document record in Airtable
+      await airtableService.uploadClientDocument({
+        contactId,
+        documentType,
+        fileUrl: mockUrl,
+        fileName: file.name,
+        fileSize: file.size
+      });
+      
+      alert('Document uploaded to secure vault. Your agent and coordination team have been notified.');
+      await loadDocuments();
+    } catch (error) {
+      alert('Upload failed. Connection error to storage cluster.');
+    }
+    
+    setUploading(false);
+  };
+  
+  return (
+    <div className="bg-white border border-slate-200 rounded-[1.5rem] p-6 shadow-sm flex flex-col">
+      <h3 className="font-bold text-slate-800 mb-4 flex items-center gap-2 uppercase tracking-tighter text-lg">
+        <FileText className="w-5 h-5 text-indigo-600" />
+        Secure Vault
+      </h3>
+      
+      <p className="text-sm text-slate-600 mb-6 italic font-medium leading-relaxed">
+        Upload pre-approval letters or disclosures. All files are encrypted and auto-indexed.
+      </p>
+      
+      <div className="space-y-4 mb-6">
+        <label className="block group">
+          <div className="px-6 py-8 border-2 border-dashed border-slate-200 rounded-3xl hover:border-indigo-400 hover:bg-indigo-50/30 cursor-pointer text-center transition-all group-active:scale-95 shadow-inner">
+            <div className="p-4 bg-white rounded-2xl shadow-sm border border-slate-100 inline-block mb-3 group-hover:scale-110 transition-transform">
+                <Upload className="w-6 h-6 text-indigo-400" />
+            </div>
+            <p className="text-xs font-black text-slate-500 uppercase tracking-widest group-hover:text-indigo-900 transition-colors">
+              {uploading ? 'Clerk Filing...' : 'Drop Documents Here'}
+            </p>
+            <p className="text-[9px] text-slate-400 font-bold uppercase tracking-tighter mt-1 italic">PDF, JPG, PNG (Max 10MB)</p>
+          </div>
+          <input
+            type="file"
+            onChange={(e) => handleFileUpload(e, 'other')}
+            className="hidden"
+            disabled={uploading}
+            accept=".pdf,.jpg,.jpeg,.png"
+          />
+        </label>
+      </div>
+      
+      {documents.length > 0 && (
+        <div className="border-t border-slate-100 pt-6 mt-auto">
+          <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-4">Uploaded Assets</p>
+          <div className="space-y-2 max-h-48 overflow-y-auto scrollbar-hide">
+            {documents.map(doc => (
+              <div key={doc.id} className="flex items-center justify-between p-3 bg-slate-50 rounded-xl border border-slate-100">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="p-2 bg-white rounded-lg shadow-sm shrink-0">
+                    <FileText className="w-4 h-4 text-slate-400" />
+                  </div>
+                  <span className="text-[11px] font-bold text-slate-700 truncate uppercase tracking-tight">{doc.fileName}</span>
+                </div>
+                <span className={`text-[8px] font-black uppercase px-2 py-0.5 rounded border tracking-widest ${
+                  doc.status === 'approved' ? 'bg-emerald-50 text-emerald-700 border-emerald-100' :
+                  doc.status === 'needs_reupload' ? 'bg-red-50 text-red-700 border-red-100' :
+                  'bg-amber-50 text-amber-700 border-amber-100'
+                }`}>
+                  {doc.status.replace('_', ' ')}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function FAQChatbot({ contactId }: { contactId: string }) {
+  const [messages, setMessages] = useState([
+    { role: 'assistant', content: 'Hi! I am your Smart Concierge. Ask me anything about your current journey or general real estate logic.' }
+  ]);
+  const [input, setInput] = useState('');
+  const [isThinking, setIsThinking] = useState(false);
+  const chatEndRef = React.useRef<HTMLDivElement>(null);
+  
+  const commonQuestions = [
+    'When is my inspection?',
+    'What documents do I need?',
+    'How much are closing costs?',
+    'When can I move in?'
+  ];
+
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages, isThinking]);
+  
+  const handleAsk = async (question: string) => {
+    if (!question.trim()) return;
+    
+    const newMessages = [...messages, { role: 'user', content: question }];
+    setMessages(newMessages);
+    setInput('');
+    setIsThinking(true);
+    
+    try {
+        const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+        const response = await ai.models.generateContent({
+            model: 'gemini-3-flash-preview',
+            contents: `A real estate client (ID: ${contactId}) is asking: "${question}". 
+            Provide a helpful, expert, yet concise answer based on general real estate knowledge and the context of a home buying/selling journey. 
+            Tone: Professional and encouraging. Limit to 3 sentences.`,
+        });
+        
+        setMessages([...newMessages, { role: 'assistant', content: response.text || "I'm processing your request. Please hold." }]);
+    } catch (e) {
+        setMessages([...newMessages, { role: 'assistant', content: "My connection to the intelligence cluster is briefly interrupted. Please try again or text your agent directly." }]);
+    } finally {
+        setIsThinking(false);
+    }
+  };
+  
+  return (
+    <div className="bg-white border border-slate-200 rounded-[2rem] p-8 shadow-xl relative overflow-hidden group">
+      <div className="absolute right-[-20px] top-[-20px] p-4 opacity-5 text-indigo-600 group-hover:rotate-12 transition-transform duration-1000 pointer-events-none"><Bot size={200}/></div>
+      
+      <div className="relative z-10">
+          <h3 className="font-black text-slate-800 mb-6 flex items-center gap-3 uppercase italic tracking-tighter text-xl">
+            <Bot className="w-8 h-8 text-indigo-600" />
+            Smart FAQ Concierge.
+          </h3>
+          
+          {/* Quick questions */}
+          <div className="flex flex-wrap gap-2 mb-8">
+            {commonQuestions.map(q => (
+              <button
+                key={q}
+                onClick={() => handleAsk(q)}
+                className="px-4 py-2 bg-indigo-50 text-indigo-700 rounded-xl text-[10px] font-black uppercase tracking-widest border border-indigo-100 hover:bg-indigo-600 hover:text-white transition-all shadow-sm"
+              >
+                {q}
+              </button>
+            ))}
+          </div>
+          
+          {/* Chat messages */}
+          <div className="h-80 overflow-y-auto mb-6 space-y-6 scrollbar-hide p-4 bg-slate-50 rounded-[2rem] shadow-inner">
+            {messages.map((msg, idx) => (
+              <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'} animate-fade-in-up`}>
+                <div className={`max-w-[85%] px-6 py-4 rounded-[1.5rem] shadow-sm relative ${
+                  msg.role === 'user' 
+                    ? 'bg-indigo-600 text-white rounded-br-none border-b-2 border-indigo-800' 
+                    : 'bg-white text-slate-700 rounded-bl-none border border-slate-200'
+                }`}>
+                  <p className="text-sm font-bold leading-relaxed">{msg.content}</p>
+                </div>
+              </div>
+            ))}
+            
+            {isThinking && (
+              <div className="flex justify-start">
+                <div className="bg-white border border-slate-100 px-6 py-4 rounded-[1.5rem] rounded-bl-none shadow-sm flex items-center gap-3">
+                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">AI Thinking...</p>
+                  <div className="flex gap-1">
+                    <div className="w-1.5 h-1.5 bg-indigo-400 rounded-full animate-bounce" />
+                    <div className="w-1.5 h-1.5 bg-indigo-400 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }} />
+                    <div className="w-1.5 h-1.5 bg-indigo-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }} />
+                  </div>
+                </div>
+              </div>
+            )}
+            <div ref={chatEndRef} />
+          </div>
+          
+          {/* Input */}
+          <div className="flex gap-4 p-2 bg-white rounded-[2rem] border border-slate-200 shadow-xl">
+            <input
+              type="text"
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyPress={(e) => e.key === 'Enter' && handleAsk(input)}
+              placeholder="Ask me anything..."
+              className="flex-1 px-6 py-4 border-none outline-none text-sm font-bold bg-transparent"
+            />
+            <button
+              onClick={() => handleAsk(input)}
+              disabled={!input.trim() || isThinking}
+              className="px-8 py-4 bg-indigo-600 text-white rounded-[1.5rem] hover:bg-indigo-700 disabled:opacity-50 transition-all flex items-center justify-center shadow-lg active:scale-95"
+            >
+              <Send size={20} />
+            </button>
+          </div>
+      </div>
+    </div>
+  );
+}
 
 export default ClientPlaybook;

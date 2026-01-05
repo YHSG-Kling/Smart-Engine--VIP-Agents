@@ -5,14 +5,13 @@ import {
   RefreshCw, CheckCircle2, ChevronLeft, Loader2, 
   Bot, Clock, TrendingUp, TrendingDown, Edit3, Save, 
   Mail, Paperclip, MessageSquare, Phone,
-  // Added Users and Share2 to fix 'Cannot find name' errors
   Users, Share2,
-  // Added missing X icon
   X
 } from 'lucide-react';
 import { Listing, SellerReport } from '../../types';
 import { n8nService } from '../../services/n8n';
 import { GoogleGenAI } from "@google/genai";
+import { ComplianceCheckedTextArea } from '../../components/AI/ComplianceCheckedTextArea';
 
 interface ListingReportsProps {
   listing: Listing;
@@ -36,7 +35,6 @@ const ListingReports: React.FC<ListingReportsProps> = ({ listing, onBack }) => {
 
     try {
         if (process.env.API_KEY) {
-            // Create a new GoogleGenAI instance right before making an API call to ensure it always uses the most up-to-date API key.
             const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
             const prompt = `
                 You are a senior real estate agent writing a weekly performance summary to your client, the seller of ${listing.address}.
@@ -55,13 +53,11 @@ const ListingReports: React.FC<ListingReportsProps> = ({ listing, onBack }) => {
                 TONE: Direct, empathetic, expert.
             `;
 
-            // Following guidelines: using string contents for single text prompt
             const response = await ai.models.generateContent({
                 model: 'gemini-3-flash-preview',
                 contents: prompt
             });
 
-            // The generated text output is extracted using the .text property
             const aiText = response.text || "Report generation failed.";
             
             const newDraft: SellerReport = {
@@ -77,7 +73,6 @@ const ListingReports: React.FC<ListingReportsProps> = ({ listing, onBack }) => {
             setDraftReport(newDraft);
             setEditedFeedback(aiText);
         } else {
-            // Simulation
             setTimeout(() => {
                 const aiText = `Hi there! We had a solid week of activity for ${listing.address} with ${listing.stats.views} views online. This is tracking well above our local benchmark. However, we only had ${listing.stats.showings} in-person tours. Showing feedback consistently mentions the master bathroom color as a point of friction. I recommend we offer a $1,500 'Designer Paint Credit' in the listing to overcome this objection immediately and secure an offer by next weekend.`;
                 const newDraft: SellerReport = {
@@ -104,7 +99,7 @@ const ListingReports: React.FC<ListingReportsProps> = ({ listing, onBack }) => {
     }
   };
 
-  const handleApproveAndSend = async () => {
+  const handleApproveAndSend = async (val: string) => {
     if (!draftReport) return;
     setIsSending(true);
     
@@ -112,11 +107,11 @@ const ListingReports: React.FC<ListingReportsProps> = ({ listing, onBack }) => {
     await n8nService.triggerWorkflow('approve-send-seller-report', { 
         reportId: draftReport.id, 
         listingId: listing.id,
-        content: editedFeedback 
+        content: val 
     });
 
     setTimeout(() => {
-        const finalReport = { ...draftReport, feedbackSummaryAI: editedFeedback, status: 'Sent' as const };
+        const finalReport = { ...draftReport, feedbackSummaryAI: val, status: 'Sent' as const };
         setReports([finalReport, ...reports]);
         setDraftReport(null);
         setIsSending(false);
@@ -126,7 +121,6 @@ const ListingReports: React.FC<ListingReportsProps> = ({ listing, onBack }) => {
 
   return (
     <div className="space-y-6 animate-fade-in-up">
-      {/* Header */}
       <div className="flex items-center justify-between bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
         <div className="flex items-center gap-4">
           <button onClick={onBack} className="p-2 hover:bg-slate-100 rounded-full text-slate-500 transition-colors">
@@ -148,11 +142,7 @@ const ListingReports: React.FC<ListingReportsProps> = ({ listing, onBack }) => {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          
-          {/* Main List / Editor Area */}
           <div className="lg:col-span-2 space-y-6">
-              
-              {/* Draft Editor (Workflow 63 View B) */}
               {draftReport && (
                 <div className="bg-white rounded-2xl border-2 border-indigo-500 shadow-2xl overflow-hidden animate-fade-in-up">
                     <div className="p-6 bg-indigo-50 border-b border-indigo-100 flex justify-between items-center">
@@ -160,7 +150,6 @@ const ListingReports: React.FC<ListingReportsProps> = ({ listing, onBack }) => {
                             <Bot className="text-indigo-600" size={20}/>
                             <h4 className="font-black text-indigo-900 uppercase tracking-widest text-xs">AI DRAFT: Week Ending {draftReport.weekEnding}</h4>
                         </div>
-                        {/* Fix: Usage of X icon */}
                         <button onClick={() => setDraftReport(null)} className="text-indigo-400 hover:text-indigo-600"><X size={18}/></button>
                     </div>
                     <div className="p-8">
@@ -177,12 +166,15 @@ const ListingReports: React.FC<ListingReportsProps> = ({ listing, onBack }) => {
 
                         <div className="space-y-4">
                             <label className="text-xs font-black text-slate-500 uppercase tracking-widest flex items-center gap-1">
-                                <Edit3 size={12}/> Executive Summary & Pivot Strategy
+                                <Edit3 size={12}/> Executive Summary & Pivot Strategy (Fair Housing Verified)
                             </label>
-                            <textarea 
+                            <ComplianceCheckedTextArea
                                 value={editedFeedback}
-                                onChange={(e) => setEditedFeedback(e.target.value)}
-                                className="w-full h-64 p-6 bg-slate-50 border border-slate-200 rounded-2xl text-slate-700 leading-relaxed focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none font-medium"
+                                onChange={setEditedFeedback}
+                                onSend={handleApproveAndSend}
+                                contentType="showing_feedback"
+                                placeholder="Edit the report content here..."
+                                sendLabel="Approve & Send to Seller"
                             />
                         </div>
 
@@ -190,20 +182,11 @@ const ListingReports: React.FC<ListingReportsProps> = ({ listing, onBack }) => {
                             <div className="flex items-center gap-2 text-xs text-slate-400 font-bold uppercase">
                                 <Paperclip size={14}/> Auto-Attached: Market Comps & Lead Log
                             </div>
-                            <button 
-                                onClick={handleApproveAndSend}
-                                disabled={isSending}
-                                className="bg-indigo-600 text-white px-8 py-3 rounded-xl font-bold flex items-center gap-3 hover:bg-indigo-700 shadow-xl transition-all active:scale-95 disabled:opacity-50"
-                            >
-                                {isSending ? <Loader2 size={10} className="animate-spin" /> : <Send size={20}/>}
-                                Approve & Send to Seller
-                            </button>
                         </div>
                     </div>
                 </div>
               )}
 
-              {/* History List */}
               <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
                   <div className="p-4 bg-slate-50 border-b border-slate-100 font-black text-slate-400 uppercase tracking-widest text-[10px]">
                       Report History
@@ -232,22 +215,16 @@ const ListingReports: React.FC<ListingReportsProps> = ({ listing, onBack }) => {
                                           <span className="text-xs font-bold text-indigo-600">{report.replyRate}% Reply</span>
                                       </div>
                                   </div>
-                                  <button className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-full transition-all">
+                                  <button className="p-2 text-slate-300 hover:text-indigo-600 hover:bg-indigo-50 rounded-full transition-all">
                                       <Eye size={20}/>
                                   </button>
                               </div>
                           </div>
                       ))}
-                      {reports.length === 0 && (
-                          <div className="p-12 text-center text-slate-400 italic">
-                              No reports sent for this listing yet.
-                          </div>
-                      )}
                   </div>
               </div>
           </div>
 
-          {/* Right Sidebar: Contextual Stats */}
           <div className="space-y-6">
               <div className="bg-slate-900 rounded-3xl p-8 text-white shadow-2xl relative overflow-hidden">
                   <div className="relative z-10">
@@ -299,9 +276,5 @@ const ListingReports: React.FC<ListingReportsProps> = ({ listing, onBack }) => {
     </div>
   );
 };
-
-const XCircle = ({ size }: { size: number }) => (
-    <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="m15 9-6 6"/><path d="m9 9 6 6"/></svg>
-);
 
 export default ListingReports;

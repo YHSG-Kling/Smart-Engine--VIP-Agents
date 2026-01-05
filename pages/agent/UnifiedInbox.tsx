@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { 
   Search, MessageSquare, Phone, Mail, Instagram, Facebook,
@@ -5,19 +6,16 @@ import {
   Sparkles, Bot, Clock, RefreshCw, CheckCheck, X,
   Mic, Image as ImageIcon, Play, Pause, Circle, PhoneCall, ArrowUpRight,
   ChevronRight, Trash2, ShieldCheck, Zap,
-  AlertTriangle, ArrowRight, ChevronLeft, Gavel, AlertCircle
+  AlertTriangle, ArrowRight, ChevronLeft, Gavel, AlertCircle,
+  Loader2
 } from 'lucide-react';
 import { GoogleGenAI } from "@google/genai";
 import { n8nService } from '../../services/n8n';
 import { ChannelType, Conversation, Message } from '../../types';
+import { ComplianceCheckedTextArea } from '../../components/AI/ComplianceCheckedTextArea';
 
 interface UnifiedInboxProps {
   isMobile?: boolean;
-}
-
-// Extended Message type for internal inbox logic
-interface InboxMessage extends Message {
-    isTransactionError?: boolean;
 }
 
 const UnifiedInbox: React.FC<UnifiedInboxProps> = ({ isMobile }) => {
@@ -31,7 +29,6 @@ const UnifiedInbox: React.FC<UnifiedInboxProps> = ({ isMobile }) => {
   // Mobile specific state
   const [showChatOnMobile, setShowChatOnMobile] = useState(false);
   
-  const [playingAudioId, setPlayingAudioId] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const mockConversations: Conversation[] = [
@@ -75,19 +72,6 @@ const UnifiedInbox: React.FC<UnifiedInboxProps> = ({ isMobile }) => {
         { id: 'm1', sender: 'contact', text: 'Here is the photo of the kitchen I liked.', timestamp: '10:28 AM', type: 'whatsapp', mediaUrl: 'https://images.unsplash.com/photo-1556911220-e15b29be8c8f?ixlib=rb-4.0.3&auto=format&fit=crop&w=400&q=80', mediaType: 'image', aiTranscription: 'AI Vision: Modern kitchen with white marble countertops and gold fixtures.' },
         { id: 'm2', sender: 'contact', text: '[Voice Note]', timestamp: '10:30 AM', type: 'whatsapp', mediaType: 'audio', aiTranscription: 'AI Whisper: "Hey, I really love this layout. Can we see if they accept FHA financing? Let me know ASAP."' }
       ]
-    },
-    {
-      id: '3',
-      contactName: 'Mike Ross',
-      lastMessage: 'Why haven\'t you responded to my offer?',
-      timestamp: '2 days ago',
-      unread: 1,
-      channel: 'facebook',
-      avatarColor: 'bg-blue-100 text-blue-600',
-      sentiment: 'Angry',
-      messages: [
-        { id: 'm1', sender: 'contact', text: 'Why haven\'t you responded to my offer?', timestamp: '2 days ago', type: 'facebook' }
-      ]
     }
   ];
 
@@ -104,9 +88,7 @@ const UnifiedInbox: React.FC<UnifiedInboxProps> = ({ isMobile }) => {
 
   const handleSelectChat = (chat: Conversation) => {
     setSelectedChat(chat);
-    if (isMobile) {
-      setShowChatOnMobile(true);
-    }
+    if (isMobile) setShowChatOnMobile(true);
   };
 
   const handleSendMessage = async (textOverride?: string) => {
@@ -145,27 +127,18 @@ const UnifiedInbox: React.FC<UnifiedInboxProps> = ({ isMobile }) => {
       
       const response = await ai.models.generateContent({
         model: 'gemini-3-flash-preview',
-        contents: [{ role: 'user', parts: [{ text: `
-          You are a top-tier real estate agent assistant. Draft a short, professional, and helpful reply to the last message in this conversation.
-          If the last message was a voice note asking a question, answer it.
-          Context:
-          ${context}
-          Reply:
-        `}]}]
+        contents: [{ role: 'user', parts: [{ text: `Draft a professional real estate response to: ${context}` }] }]
       });
       if (response.text) setAiDraft(response.text.trim());
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setIsDrafting(false);
-    }
+    } catch (e) { console.error(e); }
+    finally { setIsDrafting(false); }
   };
 
   const initiateWarmTransfer = async () => {
       if (!selectedChat) return;
       if (confirm(`Start warm transfer to lead ${selectedChat.contactName}?`)) {
           await n8nService.startWarmTransfer(selectedChat.id, '+15550009999', '+15125550101');
-          alert("Nexus OS: Initializing VOIP handover. Check your primary mobile device.");
+          alert("Nexus OS: Initializing VOIP handover. Syncing with mobile terminal.");
       }
   };
 
@@ -173,38 +146,28 @@ const UnifiedInbox: React.FC<UnifiedInboxProps> = ({ isMobile }) => {
     switch (channel) {
       case 'sms': return <MessageSquare size={12} />;
       case 'email': return <Mail size={12} />;
-      case 'instagram': return <Instagram size={12} />;
-      case 'facebook': return <Facebook size={12} />;
       case 'whatsapp': return <MessageSquare size={12} className="text-emerald-600" />;
       default: return <MessageSquare size={12} />;
     }
   };
 
-  const toggleAudio = (id: string) => {
-      if (playingAudioId === id) setPlayingAudioId(null);
-      else {
-          setPlayingAudioId(id);
-          setTimeout(() => setPlayingAudioId(null), 3000);
-      }
-  };
-
   return (
-    <div className={`flex bg-white shadow-2xl border border-slate-200 overflow-hidden animate-fade-in mx-auto max-w-[1400px] 
-      ${isMobile ? 'fixed inset-0 z-[60] h-full rounded-none' : 'h-[calc(100vh-180px)] rounded-[2rem]'}`}>
+    <div className={`flex bg-white shadow-2xl border border-slate-200 overflow-hidden animate-fade-in
+      ${isMobile ? 'fixed inset-0 z-[60] h-full' : 'h-[calc(100vh-160px)] rounded-[2.5rem] w-full'}`}>
       
-      {/* Sidebar: Conversations List */}
-      <div className={`${isMobile && showChatOnMobile ? 'hidden' : 'flex'} w-full md:w-[340px] border-r border-slate-100 flex-col bg-slate-50/50 shrink-0`}>
-        <div className="p-6 border-b border-slate-100 bg-white">
-          <div className="flex justify-between items-center mb-4 md:hidden">
-             <h2 className="text-xl font-black text-slate-800 uppercase italic tracking-tighter">Nexus Inbox</h2>
-             <button onClick={() => window.history.back()} className="p-2 text-slate-400"><X size={20}/></button>
+      {/* SIDEBAR: INBOX LIST */}
+      <div className={`${isMobile && showChatOnMobile ? 'hidden' : 'flex'} w-full md:w-[320px] lg:w-[400px] border-r border-slate-100 flex-col bg-slate-50 shrink-0 h-full overflow-hidden`}>
+        <div className="p-6 border-b border-slate-200 bg-white shrink-0">
+          <div className="flex justify-between items-center mb-4">
+             <h2 className="text-xl font-black text-slate-800 uppercase italic tracking-tighter leading-none">Nexus Inbox</h2>
+             {!isMobile && <button className="p-2 bg-slate-50 rounded-xl text-slate-400 hover:text-indigo-600"><RefreshCw size={14}/></button>}
           </div>
           <div className="relative group">
-            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4 group-focus-within:text-indigo-600 transition-colors" />
+            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
             <input 
               type="text" 
-              placeholder="FILTER NEXUS INBOX..." 
-              className="w-full pl-10 pr-4 py-2.5 bg-slate-100/50 border-2 border-transparent rounded-xl text-[10px] font-black uppercase tracking-[0.15em] focus:ring-0 focus:border-indigo-500 focus:bg-white transition-all outline-none"
+              placeholder="FILTER INBOX..." 
+              className="w-full pl-10 pr-4 py-3 bg-slate-100/50 border-2 border-transparent rounded-xl text-[10px] font-black uppercase tracking-widest focus:bg-white focus:border-indigo-500 outline-none"
             />
           </div>
         </div>
@@ -214,182 +177,175 @@ const UnifiedInbox: React.FC<UnifiedInboxProps> = ({ isMobile }) => {
             <div 
               key={chat.id}
               onClick={() => handleSelectChat(chat)}
-              className={`p-5 hover:bg-white transition-all cursor-pointer relative group ${selectedChat?.id === chat.id ? 'bg-white shadow-inner' : ''} ${chat.sentiment === 'Critical' ? 'bg-red-50/50' : ''}`}
+              className={`p-5 hover:bg-white transition-all cursor-pointer relative group ${selectedChat?.id === chat.id ? 'bg-white shadow-inner' : ''} ${chat.sentiment === 'Critical' ? 'bg-red-50/30' : ''}`}
             >
-              {selectedChat?.id === chat.id && !isMobile && <div className="absolute left-0 top-0 bottom-0 w-1.5 bg-indigo-600" />}
-              
+              {selectedChat?.id === chat.id && <div className="absolute left-0 top-0 bottom-0 w-1.5 bg-indigo-600" />}
               <div className="flex justify-between items-start mb-2">
                 <div className="flex items-center gap-3 min-w-0">
-                  <div className={`w-10 h-10 rounded-2xl flex items-center justify-center font-black text-xs uppercase shadow-sm border-2 border-white ${chat.avatarColor}`}>
+                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-black text-xs uppercase shadow-sm border border-white shrink-0 ${chat.avatarColor}`}>
                     {chat.contactName.includes('Bot') ? <Bot size={18}/> : chat.contactName.split(' ').map(n => n[0]).join('')}
                   </div>
                   <div className="min-w-0">
                     <h4 className={`text-xs uppercase tracking-tight truncate ${chat.unread > 0 ? 'font-black text-slate-900' : 'font-bold text-slate-600'}`}>
                       {chat.contactName}
                     </h4>
-                    <div className="flex items-center gap-2 mt-0.5">
-                        <span className={`flex items-center gap-1 text-[8px] font-black uppercase tracking-[0.2em] ${
-                            chat.sentiment === 'Critical' ? 'text-red-600' :
-                            chat.channel === 'sms' ? 'text-indigo-600' :
-                            chat.channel === 'whatsapp' ? 'text-emerald-600' :
-                            'text-slate-400'
-                        }`}>
-                            {chat.sentiment === 'Critical' ? <AlertTriangle size={10}/> : getChannelIcon(chat.channel)} {chat.channel}
-                        </span>
-                    </div>
+                    <span className={`text-[8px] font-black uppercase ${chat.sentiment === 'Critical' ? 'text-red-600' : 'text-indigo-500'}`}>
+                        {chat.sentiment === 'Critical' && <AlertTriangle size={8} className="inline mr-1"/>}
+                        {chat.channel}
+                    </span>
                   </div>
                 </div>
-                <span className="text-[9px] font-black text-slate-300 uppercase tracking-widest">{chat.timestamp}</span>
+                <span className="text-[8px] font-black text-slate-300 uppercase tracking-widest shrink-0 ml-2">{chat.timestamp}</span>
               </div>
-              
-              <p className={`text-[11px] truncate pl-[52px] leading-tight ${chat.unread > 0 ? 'text-slate-800 font-bold' : 'text-slate-400 font-medium'} ${chat.sentiment === 'Critical' ? 'text-red-700' : ''}`}>
+              <p className={`text-[10px] truncate pl-13 leading-tight ${chat.unread > 0 ? 'text-slate-800 font-bold' : 'text-slate-400 font-medium'}`}>
                 {chat.lastMessage}
               </p>
-              
-              {chat.unread > 0 && (
-                  <div className={`absolute right-5 bottom-5 w-5 h-5 ${chat.sentiment === 'Critical' ? 'bg-red-600' : 'bg-indigo-600'} rounded-lg flex items-center justify-center shadow-lg shadow-indigo-100`}>
-                    <span className="text-[9px] font-black text-white">{chat.unread}</span>
-                  </div>
-              )}
             </div>
           ))}
         </div>
       </div>
 
-      {/* Main Chat Interface */}
-      <div className={`${isMobile && !showChatOnMobile ? 'hidden' : 'flex'} flex-1 flex-col bg-white relative h-full`}>
+      {/* MAIN STAGE: MESSAGE HISTORY & REPLY WINDOW */}
+      <div className={`${isMobile && !showChatOnMobile ? 'hidden' : 'flex'} flex-1 flex-col bg-white relative h-full overflow-hidden min-w-0`}>
         {selectedChat ? (
           <>
-            {/* Header */}
-            <div className="h-24 px-4 md:px-8 border-b border-slate-100 flex justify-between items-center bg-white/80 backdrop-blur-md sticky top-0 z-20 shrink-0">
-              <div className="flex items-center gap-3 md:gap-5">
+            {/* CHAT HEADER */}
+            <div className="h-20 px-8 border-b border-slate-100 flex justify-between items-center bg-white/95 backdrop-blur-md shrink-0 z-30">
+              <div className="flex items-center gap-4 min-w-0">
                 {isMobile && (
                     <button onClick={() => setShowChatOnMobile(false)} className="p-2 text-slate-400 -ml-2">
                         <ChevronLeft size={24} />
                     </button>
                 )}
-                <div className={`w-10 h-10 md:w-12 md:h-12 rounded-[1rem] md:rounded-[1.5rem] flex items-center justify-center font-black text-xs md:text-sm shadow-xl border-2 md:border-4 border-white ${selectedChat.avatarColor}`}>
-                  {selectedChat.contactName.includes('Bot') ? <Bot size={24}/> : selectedChat.contactName.split(' ').map(n => n[0]).join('')}
+                <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-black text-sm shadow-md border-2 border-white shrink-0 ${selectedChat.avatarColor}`}>
+                  {selectedChat.contactName.includes('Bot') ? <Bot size={20}/> : selectedChat.contactName.split(' ').map(n => n[0]).join('')}
                 </div>
                 <div className="min-w-0">
-                  <h3 className="text-sm md:text-base font-black text-slate-900 uppercase tracking-tighter flex items-center gap-2 italic truncate">
+                  <h3 className="text-base font-black text-slate-900 uppercase tracking-tight italic italic truncate">
                     {selectedChat.contactName}
-                    <div className={`w-2 h-2 rounded-full ${selectedChat.sentiment === 'Critical' ? 'bg-red-500 animate-ping' : 'bg-emerald-500 animate-pulse'} shrink-0`} />
                   </h3>
-                  <div className="flex items-center gap-2 md:gap-4 mt-1">
-                      <div className="flex items-center gap-1.5 text-[9px] md:text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                         {getChannelIcon(selectedChat.channel)} {selectedChat.channel}
-                      </div>
-                      {!isMobile && (
-                        <>
-                          <div className="w-1 h-1 bg-slate-200 rounded-full" />
-                          {selectedChat.sentiment === 'Critical' 
-                            ? <span className="text-red-500 text-[10px] font-black uppercase tracking-widest flex items-center gap-1.5"><AlertCircle size={12}/> ACTION REQUIRED</span> 
-                            : <span className="text-emerald-600 text-[10px] font-black uppercase tracking-widest flex items-center gap-1.5"><ArrowUpRight size={12}/> AI: Intent High</span>
-                          }
-                        </>
-                      )}
+                  <div className="flex items-center gap-2">
+                    <span className="text-[9px] font-black text-indigo-600 uppercase tracking-widest">{selectedChat.channel}</span>
+                    <div className="w-1 h-1 bg-slate-200 rounded-full" />
+                    <span className={`text-[9px] font-black uppercase tracking-widest ${selectedChat.sentiment === 'Critical' ? 'text-red-500 animate-pulse' : 'text-emerald-500'}`}>
+                        {selectedChat.sentiment === 'Critical' ? 'Compliance Issue' : 'Active'}
+                    </span>
                   </div>
                 </div>
               </div>
-              <div className="flex items-center gap-2 md:gap-3">
+              <div className="flex items-center gap-2">
                 <button 
                     onClick={initiateWarmTransfer}
-                    className="flex items-center gap-2 bg-slate-900 text-white px-3 md:px-5 py-2 md:py-2.5 rounded-xl md:rounded-2xl text-[8px] md:text-[10px] font-black uppercase tracking-[0.2em] hover:bg-black transition-all shadow-xl active:scale-95 border-b-2 md:border-b-4 border-indigo-600"
+                    className="flex items-center gap-2 bg-slate-900 text-white px-4 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-black transition-all shadow-lg active:scale-95 border-b-2 border-indigo-600"
                 >
-                    <PhoneCall size={14} className="hidden md:block" /> {isMobile ? 'VOIP' : 'Transfer'}
+                    <PhoneCall size={14} /> Handover
                 </button>
-                <button className="p-2 md:p-3 text-slate-400 hover:text-slate-900 hover:bg-slate-100 rounded-2xl transition-all" title="Settings">
-                  <MoreVertical size={20} />
+                <button className="p-2 text-slate-300 hover:text-indigo-600 rounded-xl transition-all">
+                  <MoreVertical size={18} />
                 </button>
               </div>
             </div>
 
-            {/* Messages Feed */}
-            <div className="flex-1 overflow-y-auto p-4 md:p-10 space-y-6 md:space-y-8 scrollbar-hide bg-slate-50/30">
-              {/* Transaction Alert Card for specific errors */}
-              {selectedChat.sentiment === 'Critical' && (
-                  <div className="flex justify-center mb-6">
-                      <div className="bg-red-50 border-2 border-red-200 rounded-3xl p-6 text-red-900 max-w-xl shadow-xl relative overflow-hidden group">
-                          <div className="absolute right-[-20px] top-[-20px] p-2 opacity-5 text-red-900 group-hover:rotate-12 transition-transform duration-1000"><AlertTriangle size={150}/></div>
-                          <div className="relative z-10">
-                            <h4 className="font-black text-xs uppercase tracking-[0.25em] flex items-center gap-2 mb-4"><Gavel size={16}/> Transaction Protocol Failure</h4>
-                            <p className="text-sm font-bold leading-relaxed mb-6">
-                                "The legal department has flagged an error in the last disclosure. All transaction timelines for <strong className="text-red-600">123 Main St</strong> are currently halted."
-                            </p>
-                            <button className="w-full bg-red-600 text-white py-3 rounded-xl font-black uppercase tracking-widest text-[10px] shadow-lg hover:bg-red-700 active:scale-95 transition-all">Resolve In Document Vault</button>
-                          </div>
-                      </div>
-                  </div>
-              )}
+            {/* MESSAGES FEED */}
+            <div className="flex-1 overflow-y-auto p-6 lg:p-10 space-y-8 bg-slate-50/30 scrollbar-hide">
+              <div className="max-w-4xl mx-auto w-full space-y-8 pb-48">
+                {selectedChat.sentiment === 'Critical' && (
+                    <div className="bg-red-50 border-2 border-red-200 rounded-[2rem] p-8 text-red-900 shadow-2xl relative overflow-hidden group">
+                        <div className="absolute right-[-20px] top-[-20px] p-2 opacity-5 text-red-900 group-hover:rotate-12 transition-transform duration-1000"><AlertTriangle size={180}/></div>
+                        <div className="relative z-10">
+                            <div className="flex items-center gap-3 mb-4">
+                                <div className="p-2 bg-red-600 text-white rounded-xl shadow-lg"><Gavel size={20}/></div>
+                                <h4 className="font-black text-xs uppercase tracking-widest">Compliance Restriction</h4>
+                            </div>
+                            <p className="text-sm font-bold leading-tight mb-6 italic">"Brokerage Guard has restricted outbound comms for this deal. missing legal signatures detected."</p>
+                            <button className="bg-red-600 text-white px-6 py-3 rounded-xl font-black uppercase text-[10px] tracking-widest shadow-xl">Repair Doc Vault</button>
+                        </div>
+                    </div>
+                )}
 
-              {selectedChat.messages.map(msg => (
-                <div key={msg.id} className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'} animate-fade-in-up`}>
-                  <div className={`max-w-[85%] md:max-w-[70%] space-y-2`}>
-                    <div className={`rounded-xl md:rounded-[2rem] px-4 md:px-6 py-3 md:py-4 shadow-sm relative ${
-                        msg.sender === 'user' 
-                        ? 'bg-indigo-600 text-white rounded-br-none' 
-                        : selectedChat.sentiment === 'Critical' 
-                            ? 'bg-red-50 border border-red-100 text-red-900 rounded-bl-none'
-                            : 'bg-white border border-slate-200 text-slate-800 rounded-bl-none'
-                    }`}>
-                        <p className="text-xs md:text-sm font-medium leading-relaxed whitespace-pre-wrap">{msg.text}</p>
-                    </div>
-                    <div className={`text-[8px] md:text-[9px] font-black uppercase tracking-[0.2em] px-2 flex items-center gap-2 ${msg.sender === 'user' ? 'justify-end text-slate-400' : 'text-slate-400'}`}>
-                      {msg.timestamp}
-                      {msg.sender === 'user' && <CheckCheck size={14} className="text-indigo-500" />}
+                {selectedChat.messages.map(msg => (
+                  <div key={msg.id} className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'} animate-fade-in-up`}>
+                    <div className={`max-w-[85%] md:max-w-[70%] space-y-2`}>
+                      <div className={`rounded-[1.75rem] px-6 py-4 shadow-sm relative ${
+                          msg.sender === 'user' 
+                          ? 'bg-indigo-600 text-white rounded-br-none' 
+                          : selectedChat.sentiment === 'Critical' ? 'bg-red-50 border border-red-100 text-red-900 rounded-bl-none' : 'bg-white border border-slate-200 text-slate-800 rounded-bl-none'
+                      }`}>
+                          {msg.mediaType === 'image' && <img src={msg.mediaUrl} className="rounded-xl mb-3 shadow-md border-2 border-white" />}
+                          <p className="text-sm font-bold leading-relaxed">{msg.text}</p>
+                          {msg.aiTranscription && (
+                              <div className="mt-3 pt-3 border-t border-black/5 flex items-center gap-2 opacity-80">
+                                  <Bot size={12}/>
+                                  <p className="text-[10px] italic font-medium leading-tight">{msg.aiTranscription}</p>
+                              </div>
+                          )}
+                      </div>
+                      <div className={`text-[8px] font-black uppercase tracking-[0.2em] px-2 flex items-center gap-2 ${msg.sender === 'user' ? 'justify-end text-slate-400' : 'text-slate-400'}`}>
+                        {msg.timestamp}
+                        {msg.sender === 'user' && <CheckCheck size={12} className="text-indigo-400" />}
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
-              <div ref={messagesEndRef} />
+                ))}
+                <div ref={messagesEndRef} />
+              </div>
             </div>
 
-            {/* Input Area */}
-            <div className={`p-4 md:p-8 bg-white border-t border-slate-100 shrink-0 shadow-[0_-10px_30px_rgba(0,0,0,0.02)] ${isMobile ? 'pb-24' : ''}`}>
-              <div className="flex gap-3 md:gap-6 items-end">
-                <button className="p-3 md:p-4 text-slate-400 hover:text-indigo-600 bg-slate-50 border border-slate-100 rounded-xl md:rounded-2xl transition-all active:scale-90">
-                  <Paperclip size={isMobile ? 20 : 24} />
-                </button>
-                <div className="flex-1 relative group">
-                  <textarea 
-                    value={inputText}
-                    onChange={(e) => setInputText(e.target.value)}
-                    placeholder={`Reply to ${selectedChat.contactName.split(' ')[0]}...`}
-                    className="w-full bg-slate-50 border-2 border-transparent rounded-xl md:rounded-[1.5rem] px-4 md:px-6 py-3 md:py-5 text-sm font-medium focus:outline-none focus:border-indigo-500 focus:bg-white resize-none h-12 md:h-16 max-h-48 shadow-inner transition-all scrollbar-hide"
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' && !e.shiftKey) {
-                        e.preventDefault();
-                        handleSendMessage();
-                      }
-                    }}
-                  />
-                  <button 
-                    onClick={generateSmartReply}
-                    disabled={isDrafting}
-                    className="absolute right-3 md:right-4 bottom-3 md:bottom-4 p-2 md:p-2.5 bg-white rounded-lg md:rounded-xl shadow-lg border border-slate-100 text-indigo-600 hover:scale-110 active:scale-95 transition-all group-focus-within:border-indigo-200"
-                  >
-                    {isDrafting ? <RefreshCw className="animate-spin" size={isMobile ? 14 : 18} /> : <Sparkles size={isMobile ? 14 : 18} className="group-hover:animate-pulse" />}
+            {/* REPLY WINDOW (Pinned Input Area) */}
+            <div className={`absolute bottom-0 left-0 right-0 p-6 lg:p-8 bg-white border-t border-slate-100 shadow-[0_-20px_40px_rgba(0,0,0,0.03)] z-40`}>
+              <div className="max-w-4xl mx-auto w-full">
+                {aiDraft && (
+                    <div className="mb-4 bg-indigo-50 border-2 border-indigo-100 rounded-2xl p-4 animate-fade-in-up relative">
+                        <div className="flex justify-between items-center mb-3">
+                            <div className="flex items-center gap-2">
+                                <Bot size={16} className="text-indigo-600" />
+                                <span className="text-[9px] font-black text-indigo-900 uppercase tracking-widest">Synthetic Intelligence Draft</span>
+                            </div>
+                            <button onClick={() => setAiDraft(null)} className="text-indigo-300 hover:text-indigo-600"><X size={14}/></button>
+                        </div>
+                        <p className="text-xs font-bold text-indigo-900 italic leading-relaxed mb-4">"{aiDraft}"</p>
+                        <div className="flex gap-2">
+                          <button onClick={() => handleSendMessage(aiDraft)} className="flex-1 bg-indigo-600 text-white py-2 rounded-xl font-black uppercase text-[9px] tracking-widest hover:bg-indigo-700 shadow-lg">Authorize & Send</button>
+                          <button onClick={() => { setInputText(aiDraft); setAiDraft(null); }} className="px-4 py-2 bg-white border border-indigo-200 text-indigo-600 rounded-xl font-black uppercase text-[9px] tracking-widest hover:bg-indigo-50">Refine</button>
+                        </div>
+                    </div>
+                )}
+
+                <div className="flex gap-4 items-end">
+                  <button className="p-4 text-slate-400 hover:text-indigo-600 bg-slate-50 border border-slate-100 rounded-2xl transition-all shadow-inner shrink-0">
+                    <Paperclip size={20} />
                   </button>
+                  <div className="flex-1 relative group">
+                    <ComplianceCheckedTextArea
+                        value={inputText}
+                        onChange={setInputText}
+                        onSend={handleSendMessage}
+                        contentType={selectedChat.channel === 'email' ? 'email' : 'sms'}
+                        placeholder={selectedChat.sentiment === 'Critical' ? 'LOCKED: CORRECT COMPLIANCE ABOVE' : `Reply to ${selectedChat.contactName.split(' ')[0]}...`}
+                        className="!p-4 !rounded-2xl !h-14 !max-h-40"
+                        sendLabel="Dispatch"
+                    />
+                    <button 
+                      onClick={generateSmartReply}
+                      disabled={isDrafting || !!aiDraft || selectedChat.sentiment === 'Critical'}
+                      className="absolute right-20 bottom-14 p-2 bg-white rounded-xl shadow-md border border-slate-100 text-indigo-600 hover:scale-110 active:scale-95 transition-all disabled:opacity-30 z-10"
+                    >
+                      {isDrafting ? <Loader2 size={18} className="animate-spin" /> : <Sparkles size={18} />}
+                    </button>
+                  </div>
                 </div>
-                <button 
-                  onClick={() => handleSendMessage()}
-                  disabled={isSending || !inputText.trim()}
-                  className="bg-indigo-600 text-white p-3 md:p-5 rounded-xl md:rounded-[1.5rem] hover:bg-indigo-700 disabled:opacity-50 transition-all shadow-2xl shadow-indigo-100 active:scale-95"
-                >
-                  <Send size={isMobile ? 20 : 24} />
-                </button>
               </div>
             </div>
           </>
         ) : (
-          <div className="flex-1 flex flex-col items-center justify-center text-slate-300 p-12 text-center animate-fade-in bg-slate-50/20">
-            <div className="w-32 h-32 bg-white rounded-[3rem] shadow-2xl flex items-center justify-center mb-10 border border-slate-100 relative group">
-                <div className="absolute inset-0 bg-indigo-500 rounded-[3rem] opacity-0 group-hover:opacity-10 transition-opacity" />
-                <MessageSquare size={64} className="opacity-10 group-hover:scale-110 transition-transform duration-700" />
+          <div className="flex-1 flex flex-col items-center justify-center text-slate-300 p-12 text-center animate-fade-in bg-slate-50/20 h-full">
+            <div className="w-32 h-32 bg-white rounded-[3rem] shadow-xl flex items-center justify-center mb-8 border border-slate-50 group">
+                <MessageSquare size={60} className="opacity-10 group-hover:scale-110 transition-transform duration-700" />
             </div>
-            <h3 className="text-2xl font-black text-slate-400 uppercase tracking-tighter italic">Secure Terminal.</h3>
-            <p className="max-w-sm text-xs font-bold uppercase tracking-[0.2em] text-slate-300 mt-5 leading-relaxed">Select a communication thread from the terminal stack to initiate lead intelligence.</p>
+            <h3 className="text-2xl font-black text-slate-900 tracking-tighter uppercase italic leading-none">Inbox Protocol Offline.</h3>
+            <p className="max-w-xs text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 mt-4 leading-relaxed px-6">
+                Select a conversation from the sidebar to initialize communication synthesis.
+            </p>
           </div>
         )}
       </div>

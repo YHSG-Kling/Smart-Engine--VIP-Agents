@@ -1,13 +1,14 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
-/* Added Edit3, ExternalLink, and Smartphone to fix missing icon errors */
 import { 
   MapPin, Calendar, Clock, Plus, Trash2, 
   RefreshCw, CheckCircle2, ChevronRight, 
   ArrowRight, Navigation, Home, Bot, Sparkles, 
   Download, Send, Loader2, Info, User, 
   Search, ShieldAlert, BadgeCheck, FileText,
-  GripVertical, Edit3, ExternalLink, Smartphone,
+  GripVertical, 
+  // Added missing icon imports
+  Edit3, ExternalLink, Smartphone,
   LayoutGrid, List, ChevronLeft, MoreVertical,
   Map as MapIcon, SearchCode, Users, Flame, Zap
 } from 'lucide-react';
@@ -27,19 +28,23 @@ const MOCK_CRM_LEADS: Lead[] = [
       id: '1', name: 'Alice Freeman', score: 94, lastActivity: 'Viewed Pricing Page (Just Now)', 
       lastActivityDate: new Date().toISOString(),
       status: 'Hot', source: 'Web Form', tags: ['Cash Buyer', 'Upsize Candidate', 'Urgent'], 
-      sentiment: 'Delighted', urgency: 5, intent: 'Seller'
+      sentiment: 'Delighted', urgency: 5, intent: 'Seller',
+      aiSummary: 'VP at TechCorp. Fast-paced, needs direct communication.'
     },
     { 
       id: '2', name: 'Bob Driller', score: 88, lastActivity: 'Searched "Fixer Upper" (15 mins ago)', 
       lastActivityDate: new Date().toISOString(),
       status: 'Nurture', source: 'IDX Search', tags: ['Investor', 'Seller Intent'], 
-      sentiment: 'Neutral', urgency: 3, intent: 'Investor'
+      sentiment: 'Neutral', urgency: 3, intent: 'Investor',
+      aiSummary: 'Looking for ROI > 12%. Asking about zoning.'
     },
     { 
       id: '3', name: 'James Litigation', score: 99, lastActivity: 'Opted Out via SMS', 
       lastActivityDate: new Date().toISOString(),
       status: 'Cold', source: 'Twilio', tags: ['Opt-Out'], 
       sentiment: 'Negative', urgency: 1, intent: 'Buyer',
+      // Added missing aiSummary property
+      aiSummary: 'Opt-out requested. DO NOT CONTACT.',
       dncEnabled: true
     }
 ];

@@ -1,11 +1,10 @@
 
-
 import React, { useState } from 'react';
-// Fix: Added missing ShieldCheck and MoreVertical to the lucide-react import
 import { 
   ShieldAlert, AlertTriangle, MessageSquare, ChevronRight, 
   RefreshCw, Bot, Gavel, Trash2, CheckCircle2, UserCheck,
   Search, Filter, ArrowRight, Loader2, Zap, Shield,
+  // Added missing ShieldCheck and MoreVertical
   ShieldCheck, MoreVertical
 } from 'lucide-react';
 import { RiskIncident, UserRole } from '../../types';

@@ -1,16 +1,17 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { 
   FileCheck, AlertTriangle, CheckCircle2, XCircle, Search, Filter, 
   Eye, Clock, ShieldAlert, FileText, ChevronRight, User, Calendar, X, Download, MessageSquare,
   Home, Loader2, Sparkles, RefreshCw, ChevronDown, ChevronUp, ShieldCheck, Mail, Phone, ExternalLink,
   Upload, ArrowRight, Send, BarChart3, Archive, Zap, Bot, Award, AlertCircle, LayoutList, PenTool, Database,
   Plus, Gavel, Settings2, Trash2, FileBox, Shield,
-  ClipboardList
+  ClipboardList, TrendingUp, UserX, BarChart, Activity
 } from 'lucide-react';
 import { n8nService } from '../../services/n8n';
+import { airtableService } from '../../services/airtable';
 import { useAuth } from '../../contexts/AuthContext';
-import { UserRole, ComplianceReport, Deal, ContractTemplate, ComplianceRule, TaskMasterTemplate, TaskRole } from '../../types';
+import { UserRole, ComplianceReport, Deal, ContractTemplate, ComplianceRule, TaskMasterTemplate, TaskRole, ComplianceFlag } from '../../types';
 
 interface ComplianceDoc {
   id: string;
@@ -38,11 +39,13 @@ interface AgentLicense {
 
 const ComplianceManager: React.FC = () => {
   const { user, role } = useAuth();
-  const [activeTab, setActiveTab] = useState<'queue' | 'licenses' | 'monthly-reports' | 'master-view' | 'templates' | 'rules' | 'archives' | 'task-master'>('queue');
+  const [activeTab, setActiveTab] = useState<'queue' | 'licenses' | 'monthly-reports' | 'master-view' | 'templates' | 'rules' | 'archives' | 'task-master' | 'fair-housing'>('queue');
   const [selectedDoc, setSelectedDoc] = useState<ComplianceDoc | null>(null);
   const [expandedProperties, setExpandedProperties] = useState<Record<string, boolean>>({});
   const [isRegenerating, setIsRegenerating] = useState(false);
   const [isArchiving, setIsArchiving] = useState<string | null>(null);
+  const [fairHousingFlags, setFairHousingFlags] = useState<ComplianceFlag[]>([]);
+  const [isLoadingFlags, setIsLoadingFlags] = useState(false);
   
   // Workflow 148 Admin: Task Master Library
   const [taskTemplates, setTaskTemplates] = useState<TaskMasterTemplate[]>([
@@ -95,6 +98,19 @@ const ComplianceManager: React.FC = () => {
     { id: 'lic3', agentName: 'Harvey Specter', licenseNumber: 'TX-112233', type: 'Broker', status: 'Valid', expiryDate: '2026-01-20', ceCreditsEarned: 24, ceCreditsRequired: 24 },
   ]);
 
+  useEffect(() => {
+    if (activeTab === 'fair-housing') {
+        loadFairHousingFlags();
+    }
+  }, [activeTab]);
+
+  const loadFairHousingFlags = async () => {
+    setIsLoadingFlags(true);
+    const data = await airtableService.getComplianceFlags();
+    setFairHousingFlags(data);
+    setIsLoadingFlags(false);
+  };
+
   const toggleProperty = (property: string) => setExpandedProperties(prev => ({ ...prev, [property]: !prev[property] }));
 
   const handleRegenerate = async () => {
@@ -116,19 +132,27 @@ const ComplianceManager: React.FC = () => {
     }, 2500);
   };
 
+  const fairHousingStats = useMemo(() => {
+    return {
+        total: fairHousingFlags.length,
+        highSeverity: fairHousingFlags.filter(f => f.severity === 'high').length,
+        overridden: fairHousingFlags.filter(f => f.actionTaken === 'overridden').length,
+    };
+  }, [fairHousingFlags]);
+
   return (
     <div className="space-y-5 animate-fade-in pb-20">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 pb-3 border-b border-slate-200">
         <div>
-          <h2 className="text-xl font-black text-slate-800 uppercase tracking-tighter italic">Compliance Command.</h2>
-          <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest mt-0.5">Audit log verification active</p>
+          <h2 className="text-xl font-black text-slate-800 uppercase tracking-tighter italic leading-none">Compliance Command.</h2>
+          <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest mt-1.5">Brokerage Governance & AI Sentinel</p>
         </div>
         <div className="flex bg-white rounded-xl p-0.5 border border-slate-200 shadow-sm overflow-x-auto max-w-full scrollbar-hide">
             <button onClick={() => setActiveTab('queue')} className={`px-4 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all flex items-center gap-1.5 whitespace-nowrap ${activeTab === 'queue' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-500 hover:bg-slate-50'}`}>
                 <FileCheck size={12} /> Audit Queue
             </button>
-            <button onClick={() => setActiveTab('master-view')} className={`px-4 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all flex items-center gap-1.5 whitespace-nowrap ${activeTab === 'master-view' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-500 hover:bg-slate-50'}`}>
-                <LayoutList size={12} /> Master Process
+            <button onClick={() => setActiveTab('fair-housing')} className={`px-4 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all flex items-center gap-1.5 whitespace-nowrap ${activeTab === 'fair-housing' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-500 hover:bg-slate-50'}`}>
+                <ShieldAlert size={12} className="text-red-500" /> Fair Housing Audit
             </button>
             <button onClick={() => setActiveTab('task-master')} className={`px-4 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all flex items-center gap-1.5 whitespace-nowrap ${activeTab === 'task-master' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-500 hover:bg-slate-50'}`}>
                 <ClipboardList size={12} /> Task Master
@@ -139,9 +163,6 @@ const ComplianceManager: React.FC = () => {
             <button onClick={() => setActiveTab('rules')} className={`px-4 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all flex items-center gap-1.5 whitespace-nowrap ${activeTab === 'rules' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-500 hover:bg-slate-50'}`}>
                 <Settings2 size={12} /> Auto-Logic
             </button>
-            <button onClick={() => setActiveTab('templates')} className={`px-4 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all flex items-center gap-1.5 whitespace-nowrap ${activeTab === 'templates' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-500 hover:bg-slate-50'}`}>
-                <PenTool size={12} /> Auto-Drafting
-            </button>
             <button onClick={() => setActiveTab('monthly-reports')} className={`px-4 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all flex items-center gap-1.5 whitespace-nowrap ${activeTab === 'monthly-reports' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-500 hover:bg-slate-50'}`}>
                 <BarChart3 size={12} /> Analysis
             </button>
@@ -150,6 +171,109 @@ const ComplianceManager: React.FC = () => {
             </button>
         </div>
       </div>
+
+      {/* --- FAIR HOUSING AUDIT TAB --- */}
+      {activeTab === 'fair-housing' && (
+          <div className="space-y-6 animate-fade-in-up">
+              <div className="bg-slate-900 rounded-[2.5rem] p-10 text-white shadow-xl relative overflow-hidden border-b-8 border-red-600 flex flex-col md:flex-row items-center justify-between gap-12">
+                  <div className="absolute right-0 top-0 p-12 opacity-5 rotate-12"><ShieldAlert size={200}/></div>
+                  <div className="relative z-10 max-w-xl">
+                      <p className="text-red-400 text-sm font-black uppercase tracking-[0.3em] mb-4">E&O Risk Protection</p>
+                      <h2 className="text-4xl font-black italic tracking-tighter uppercase mb-4 leading-none">Fair Housing <br/> AI Guardian.</h2>
+                      <p className="text-indigo-100 text-lg font-medium opacity-90 leading-relaxed mb-8">Monitoring every outbound comm and listing for potential discrimination. AI (Workflow 156) flags violations in real-time, enforcing brokerage-wide compliance standards.</p>
+                      
+                      <div className="flex gap-4">
+                          <div className="bg-white/10 backdrop-blur-md px-6 py-4 rounded-2xl border border-white/10 text-center min-w-[120px]">
+                              <p className="text-[9px] font-black text-indigo-300 uppercase tracking-widest mb-1">TOTAL FLAGS</p>
+                              <p className="text-3xl font-black">{fairHousingStats.total}</p>
+                          </div>
+                          <div className="bg-red-500/20 backdrop-blur-md px-6 py-4 rounded-2xl border border-red-500/30 text-center min-w-[120px]">
+                              <p className="text-[9px] font-black text-red-300 uppercase tracking-widest mb-1">OVERRIDES</p>
+                              <p className="text-3xl font-black text-red-400">{fairHousingStats.overridden}</p>
+                          </div>
+                          <div className="bg-emerald-500/20 backdrop-blur-md px-6 py-4 rounded-2xl border border-emerald-500/30 text-center min-w-[120px]">
+                              <p className="text-[9px] font-black text-emerald-300 uppercase tracking-widest mb-1">RISK SCORE</p>
+                              <p className="text-3xl font-black text-emerald-400">LOW</p>
+                          </div>
+                      </div>
+                  </div>
+              </div>
+
+              <div className="bg-white rounded-[2rem] border border-slate-200 shadow-md overflow-hidden">
+                  <div className="p-6 border-b border-slate-100 bg-slate-50/50 flex flex-col md:flex-row justify-between items-center px-10 gap-4">
+                      <h3 className="font-black text-[10px] text-slate-800 uppercase tracking-[0.3em] flex items-center gap-2">
+                        <AlertTriangle size={18} className="text-red-500" /> Compliance Audit Trail
+                      </h3>
+                      <div className="flex gap-2 w-full md:w-auto">
+                        <div className="relative flex-1 md:w-64">
+                            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-300 w-3.5 h-3.5" />
+                            <input type="text" placeholder="FILTER BY AGENT OR ADDRESS..." className="w-full pl-10 pr-4 py-2 text-[10px] font-black uppercase border border-slate-200 rounded-xl focus:ring-1 focus:ring-red-500 outline-none shadow-inner" />
+                        </div>
+                        <button onClick={loadFairHousingFlags} className="p-2 bg-white border border-slate-200 rounded-xl text-slate-400 hover:text-red-500 transition-all shadow-sm">
+                            <RefreshCw size={18} className={isLoadingFlags ? 'animate-spin' : ''} />
+                        </button>
+                      </div>
+                  </div>
+                  
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left">
+                        <thead className="bg-white border-b border-slate-100 text-[8px] font-black text-slate-400 uppercase tracking-widest">
+                            <tr>
+                                <th className="p-8">Professional / Date</th>
+                                <th className="p-8">Content Source</th>
+                                <th className="p-8">Flagged Reason</th>
+                                <th className="p-8">Audit Action</th>
+                                <th className="p-8 text-right">Control</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100 text-[11px] font-bold">
+                            {fairHousingFlags.map(flag => (
+                                <tr key={flag.id} className="hover:bg-slate-50 transition-colors group">
+                                    <td className="p-8">
+                                        <div className="font-black text-slate-900 uppercase tracking-tight text-sm mb-1">{flag.userId}</div>
+                                        <div className="text-[9px] text-slate-400 uppercase font-black">{flag.createdAt}</div>
+                                    </td>
+                                    <td className="p-8">
+                                        <span className="bg-slate-100 text-slate-500 px-3 py-1 rounded-full text-[9px] font-black uppercase border border-slate-200">{flag.contentType.replace('_', ' ')}</span>
+                                    </td>
+                                    <td className="p-8 max-w-sm">
+                                        <div className="flex flex-col gap-2">
+                                            <div className="flex flex-wrap gap-1">
+                                                {flag.violationType.map(v => (
+                                                    <span key={v} className="bg-red-50 text-red-700 px-2 py-0.5 rounded text-[8px] font-black uppercase border border-red-100">{v.replace('_', ' ')}</span>
+                                                ))}
+                                            </div>
+                                            <p className="text-[10px] text-slate-600 italic leading-relaxed line-clamp-2">"{flag.originalText}"</p>
+                                        </div>
+                                    </td>
+                                    <td className="p-8">
+                                        <div className="flex flex-col gap-1">
+                                            <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase border w-fit ${
+                                                flag.actionTaken === 'corrected' ? 'bg-emerald-50 text-emerald-700 border-emerald-100' :
+                                                flag.actionTaken === 'overridden' ? 'bg-amber-50 text-amber-700 border-amber-100' :
+                                                'bg-red-50 text-red-700 border-red-100'
+                                            }`}>{flag.actionTaken}</span>
+                                            {flag.overrideReason && <p className="text-[8px] text-amber-600 font-bold italic truncate max-w-[150px]">Reason: {flag.overrideReason}</p>}
+                                        </div>
+                                    </td>
+                                    <td className="p-8 text-right">
+                                        <button className="p-2.5 bg-white border border-slate-200 text-slate-400 hover:text-indigo-600 rounded-xl transition-all shadow-sm">
+                                            <Eye size={18}/>
+                                        </button>
+                                    </td>
+                                </tr>
+                            ))}
+                            {fairHousingFlags.length === 0 && !isLoadingFlags && (
+                                <tr>
+                                    <td colSpan={5} className="p-20 text-center text-slate-300 italic font-black uppercase text-xs">No Fair Housing violations recorded in current ledger.</td>
+                                </tr>
+                            )}
+                        </tbody>
+                    </table>
+                  </div>
+              </div>
+          </div>
+      )}
 
       {/* --- WORKFLOW 148: ADMIN VIEW A - TASK MASTER LIBRARY --- */}
       {activeTab === 'task-master' && (
@@ -634,7 +758,7 @@ const ComplianceManager: React.FC = () => {
                           <ul className="space-y-3">
                               {selectedDoc.aiIssues?.map((issue, i) => (
                                   <li key={i} className="flex items-start gap-3 text-red-700 text-sm font-bold italic">
-                                      <div className="mt-1 w-1.5 h-1.5 rounded-full bg-red-400 shrink-0" />
+                                      <div className="mt-1.5 w-1.5 h-1.5 rounded-full bg-red-400 shrink-0" />
                                       {issue}
                                   </li>
                               ))}

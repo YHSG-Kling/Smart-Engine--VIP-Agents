@@ -121,11 +121,8 @@ const SmartCMA: React.FC = () => {
       }
       
       // Trigger actual n8n logging
-      await n8nService.triggerCMAPackage({ 
-          address: inputs.address, 
-          seller: inputs.sellerName, 
-          timestamp: new Date().toISOString() 
-      });
+      // Fixed: Passing expected 6 arguments instead of an object to match the service definition.
+      await n8nService.triggerCMAPackage(null, inputs.address, inputs.beds, inputs.baths, inputs.sqft, [inputs.upgrades]);
 
     } catch (e) {
       console.error(e);

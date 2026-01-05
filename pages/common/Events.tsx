@@ -5,8 +5,8 @@ import {
   Search, Filter, BarChart3, Bot, Send, Sparkles, 
   CheckCircle2, Clock, X, MessageSquare, Download,
   ExternalLink, Loader2, PieChart, Landmark,
-  // Fix: Added missing imports
-  ArrowRight, Globe, Settings
+  ArrowRight, Globe, Settings, RefreshCw, Activity,
+  Trophy, Zap
 } from 'lucide-react';
 import { RealEstateEvent, EventRegistration, UserRole } from '../../types';
 import { useAuth } from '../../contexts/AuthContext';
@@ -16,6 +16,7 @@ import { GoogleGenAI } from "@google/genai";
 const Events: React.FC = () => {
   const { user, role } = useAuth();
   const [activeTab, setActiveTab] = useState<'hub' | 'manager' | 'guests'>('hub');
+  const [isProcessing, setIsProcessing] = useState<string | null>(null);
   const [events, setEvents] = useState<RealEstateEvent[]>([
     {
       id: 'e1',
@@ -64,17 +65,13 @@ const Events: React.FC = () => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [chatMessages]);
 
-  const handleCreateEvent = () => {
-    alert("Protocol: Launching Event Architect. n8n listener active for high-level sync.");
-  };
-
   const handleSendReminder = async (regId: string) => {
-    const reg = registrations.find(r => r.id === regId);
-    if (!reg) return;
-    
-    // Workflow 94: AI Drafted Personal Reminder
-    alert(`AI: Drafting hype SMS for ${reg.contactName}. Context: Event e1, Status: Registered.`);
+    setIsProcessing(regId);
     await n8nService.triggerWorkflow('send-event-reminder', { registrationId: regId });
+    setTimeout(() => {
+        setIsProcessing(null);
+        alert(`AI: Personal reminder dispatched to guest.`);
+    }, 1000);
   };
 
   const handleAskConcierge = async () => {
@@ -87,7 +84,6 @@ const Events: React.FC = () => {
     try {
         const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
         const eventContext = selectedEvent || events[0];
-        // Fix: Updated call to follow @google/genai guidelines
         const response = await ai.models.generateContent({
             model: 'gemini-3-flash-preview',
             contents: userMsg,
@@ -106,69 +102,107 @@ const Events: React.FC = () => {
     }
   };
 
-  const renderAdminView = () => (
-    <div className="space-y-6 animate-fade-in-up">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
-                <div>
-                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Total Active RSVPs</p>
-                    <h3 className="text-2xl font-black text-slate-900 tracking-tighter">{events.reduce((acc, e) => acc + e.rsvpCount, 0)}</h3>
-                </div>
-                <div className="p-3 bg-indigo-50 text-indigo-600 rounded-xl"><Users size={20}/></div>
-            </div>
-            <div className="bg-indigo-600 p-5 rounded-2xl shadow-xl text-white relative overflow-hidden">
-                <div className="relative z-10">
-                    <p className="text-indigo-200 text-[9px] font-black uppercase tracking-widest">Show-Up Rate (AI Proj)</p>
-                    <h3 className="text-2xl font-black">74.2%</h3>
-                </div>
-                <PieChart className="absolute right-[-10px] bottom-[-10px] opacity-10" size={64}/>
-            </div>
-            <button onClick={handleCreateEvent} className="bg-slate-900 text-white p-5 rounded-2xl shadow-lg flex items-center justify-center gap-3 hover:bg-black transition-all group">
-                <Plus size={20} className="group-hover:rotate-90 transition-transform"/>
-                <span className="font-black uppercase tracking-widest text-xs">Launch New Event</span>
+  return (
+    <div className="space-y-6 animate-fade-in-up pb-20">
+      <div className="flex bg-white rounded-xl p-1 border border-slate-200 w-fit shadow-md mb-8">
+          {[
+              { id: 'hub', label: 'Event Hub', icon: Globe },
+              { id: 'manager', label: 'Command', icon: Settings, hide: role === UserRole.BUYER || role === UserRole.SELLER },
+              { id: 'guests', label: 'Guest List', icon: Users, hide: role === UserRole.BUYER || role === UserRole.SELLER },
+          ].filter(t => !t.hide).map(tab => (
+            <button key={tab.id} onClick={() => setActiveTab(tab.id as any)} className={`px-6 py-2.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap flex items-center gap-2 ${activeTab === tab.id ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-400 hover:bg-slate-50'}`}>
+                <tab.icon size={14} /> {tab.label}
             </button>
-        </div>
+          ))}
+      </div>
 
-        <div className="bg-white rounded-[2rem] border border-slate-200 shadow-sm overflow-hidden">
-            <div className="p-6 border-b border-slate-100 bg-slate-50/50 flex justify-between items-center px-8">
-                <h3 className="font-black text-[10px] text-slate-800 uppercase tracking-[0.3em] flex items-center gap-2">
-                    <Calendar size={18} className="text-indigo-600" /> Professional Event Roster
-                </h3>
+      {activeTab === 'hub' && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            {events.map(event => (
+                <div key={event.id} className="bg-white rounded-[2.5rem] border border-slate-200 shadow-xl overflow-hidden group hover:border-indigo-400 transition-all">
+                    <div className="h-48 bg-slate-900 relative">
+                        <img src="https://images.unsplash.com/photo-1511795409834-ef04bbd61622?w=800&q=80" className="w-full h-full object-cover opacity-60 group-hover:scale-105 transition-transform duration-1000" />
+                        <div className="absolute inset-0 bg-gradient-to-t from-slate-900 to-transparent" />
+                        <div className="absolute bottom-6 left-8">
+                            <span className="bg-indigo-600 text-white text-[8px] font-black px-2 py-0.5 rounded uppercase tracking-widest mb-2 inline-block shadow-lg">{event.type}</span>
+                            <h3 className="text-2xl font-black text-white italic uppercase tracking-tighter">{event.name}</h3>
+                        </div>
+                    </div>
+                    <div className="p-8 space-y-6">
+                        <div className="flex gap-6">
+                            <div className="flex items-center gap-2 text-xs font-bold text-slate-500 uppercase tracking-widest">
+                                <Calendar size={16} className="text-indigo-600" /> {new Date(event.dateTime).toLocaleDateString()}
+                            </div>
+                            <div className="flex items-center gap-2 text-xs font-bold text-slate-500 uppercase tracking-widest">
+                                <MapPin size={16} className="text-indigo-600" /> {event.location.split('-')[0]}
+                            </div>
+                        </div>
+                        <p className="text-slate-600 text-sm leading-relaxed">{event.description}</p>
+                        <div className="flex gap-4 pt-4">
+                            <button className="flex-1 bg-slate-900 text-white py-3 rounded-xl font-black uppercase text-[10px] tracking-widest shadow-xl hover:bg-black transition-all">RSVP Now</button>
+                            <button onClick={() => { setSelectedEvent(event); setIsConciergeOpen(true); }} className="px-6 bg-indigo-50 text-indigo-600 rounded-xl font-black uppercase text-[10px] tracking-widest border border-indigo-100 flex items-center gap-2 hover:bg-indigo-100 transition-all">
+                                <Bot size={16}/> Ask AI
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            ))}
+        </div>
+      )}
+
+      {activeTab === 'manager' && (
+        <div className="space-y-8 animate-fade-in-up">
+            <div className="bg-slate-900 rounded-[2.5rem] p-10 text-white shadow-xl relative overflow-hidden border-b-8 border-indigo-600">
+                <div className="absolute right-0 top-0 p-8 opacity-10 rotate-12"><Calendar size={200}/></div>
+                <div className="relative z-10 flex flex-col md:flex-row items-center justify-between gap-12">
+                    <div className="max-w-xl">
+                        <h3 className="text-3xl font-black italic tracking-tighter uppercase mb-4 leading-none">Event Command.</h3>
+                        <p className="text-indigo-100 text-lg font-medium opacity-90 leading-relaxed mb-8">Orchestrate seminars, webinars, and mixers. Workflow 94 handles high-frequency RSVPs and automated nurture sequences.</p>
+                        <button className="bg-indigo-600 text-white px-8 py-4 rounded-2xl font-black uppercase text-xs tracking-widest shadow-2xl hover:bg-indigo-500 active:scale-95 transition-all flex items-center gap-2 border-b-4 border-indigo-900">
+                            <Plus size={20}/> Launch New Event
+                        </button>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4 shrink-0">
+                        <div className="bg-white/10 p-4 rounded-2xl border border-white/10 text-center min-w-[120px]">
+                            <p className="text-[9px] font-black text-indigo-300 uppercase tracking-widest mb-1">TOTAL RSVPS</p>
+                            <p className="text-2xl font-black">{events.reduce((acc, e) => acc + e.rsvpCount, 0)}</p>
+                        </div>
+                        <div className="bg-white/10 p-4 rounded-2xl border border-white/10 text-center min-w-[120px]">
+                            <p className="text-[9px] font-black text-indigo-300 uppercase tracking-widest mb-1">CONVERSION</p>
+                            <p className="text-2xl font-black italic">14%</p>
+                        </div>
+                    </div>
+                </div>
             </div>
-            <div className="overflow-x-auto">
+
+            <div className="bg-white rounded-[2rem] border border-slate-200 shadow-md overflow-hidden">
                 <table className="w-full text-left">
-                    <thead className="bg-white border-b border-slate-100 text-[8px] font-black text-slate-400 uppercase tracking-widest">
+                    <thead className="bg-slate-50 border-b border-slate-100 text-[8px] font-black text-slate-400 uppercase tracking-widest">
                         <tr>
-                            <th className="p-8">Event Name</th>
-                            <th className="p-8">Date & Venue</th>
-                            <th className="p-8">Type</th>
-                            <th className="p-8 text-center">RSVPs</th>
+                            <th className="p-8">Event Entity</th>
+                            <th className="p-8">Engagement</th>
+                            <th className="p-8">Logistics</th>
                             <th className="p-8 text-right">Action</th>
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 text-[11px] font-bold">
                         {events.map(e => (
-                            <tr key={e.id} className="hover:bg-slate-50 transition-colors cursor-pointer group">
+                            <tr key={e.id} className="hover:bg-slate-50 transition-colors">
                                 <td className="p-8">
-                                    <div className="font-black text-slate-900 uppercase tracking-tight text-sm">{e.name}</div>
+                                    <div className="font-black text-slate-900 uppercase tracking-tight text-sm mb-1">{e.name}</div>
+                                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">{e.type}</p>
                                 </td>
                                 <td className="p-8">
-                                    <div className="text-slate-700">{new Date(e.dateTime).toLocaleDateString()} @ {new Date(e.dateTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
-                                    <div className="text-[9px] text-slate-400 uppercase tracking-widest mt-1 truncate max-w-xs">{e.location}</div>
+                                    <div className="flex items-center gap-4">
+                                        <span className="text-lg font-black text-indigo-600 tabular-nums">{e.rsvpCount}</span>
+                                        <p className="text-[8px] text-slate-400 uppercase font-black leading-none">Confirmed <br/> RSVPs</p>
+                                    </div>
                                 </td>
-                                <td className="p-8">
-                                    <span className={`px-2.5 py-1 rounded-lg text-[9px] font-black uppercase border ${e.type === 'Webinar' ? 'bg-blue-50 text-blue-700 border-blue-100' : 'bg-orange-50 text-orange-700 border-orange-100'}`}>
-                                        {e.type}
-                                    </span>
-                                </td>
-                                <td className="p-8 text-center">
-                                    <div className="text-lg font-black text-indigo-600">{e.rsvpCount}</div>
-                                    <div className="text-[8px] text-slate-400 uppercase">Confirmed</div>
+                                <td className="p-8 text-slate-500">
+                                    <div className="flex items-center gap-2"><Clock size={12}/> {new Date(e.dateTime).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}</div>
                                 </td>
                                 <td className="p-8 text-right">
-                                    <button className="p-2 bg-white border border-slate-200 text-slate-400 hover:text-indigo-600 hover:border-indigo-600 rounded-xl transition-all shadow-sm">
-                                        <BarChart3 size={16}/>
-                                    </button>
+                                    <button className="p-2 text-slate-300 hover:text-indigo-600 transition-colors"><ChevronRight size={20}/></button>
                                 </td>
                             </tr>
                         ))}
@@ -176,197 +210,119 @@ const Events: React.FC = () => {
                 </table>
             </div>
         </div>
-    </div>
-  );
+      )}
 
-  const renderAgentView = () => (
-    <div className="space-y-6 animate-fade-in-up">
-        <div className="bg-slate-900 rounded-[2rem] p-8 text-white shadow-xl relative overflow-hidden flex flex-col md:flex-row items-center justify-between gap-6">
-            <div className="relative z-10">
-                <h3 className="text-2xl font-black italic tracking-tighter uppercase mb-2 flex items-center gap-3">
-                    <Users size={24} className="text-indigo-400" /> Personal Guest Hub.
-                </h3>
-                <p className="text-indigo-100 text-sm max-w-lg">Track clients you've invited. AI monitors their engagement patterns and drafts personal HYPER-SMS reminders for maximum attendance.</p>
-            </div>
-            <div className="relative z-10 bg-white/10 p-4 rounded-2xl border border-white/20 backdrop-blur-md">
-                <p className="text-[9px] font-black text-indigo-300 uppercase tracking-widest mb-1">MY INVITE SCORE</p>
-                <p className="text-3xl font-black tracking-tighter text-white">84%</p>
-            </div>
-        </div>
+      {activeTab === 'guests' && (
+          <div className="bg-white rounded-[2rem] border border-slate-200 shadow-md overflow-hidden animate-fade-in-up">
+              <div className="p-6 border-b border-slate-100 bg-slate-50/50 flex justify-between items-center px-10">
+                  <h3 className="font-black text-[10px] text-slate-800 uppercase tracking-[0.3em] flex items-center gap-2">
+                    <Users size={18} className="text-indigo-600" /> Guest Registry
+                  </h3>
+                  <div className="flex gap-2">
+                      <div className="relative w-64">
+                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-300 w-3 h-3" />
+                         <input type="text" placeholder="FILTER GUESTS..." className="w-full pl-9 pr-4 py-2 text-[9px] font-black uppercase border border-slate-200 rounded-xl outline-none focus:ring-1 focus:ring-indigo-500 shadow-inner" />
+                      </div>
+                      <button className="p-2 bg-white border border-slate-200 rounded-xl text-slate-400 hover:text-indigo-600 transition-colors"><RefreshCw size={18}/></button>
+                  </div>
+              </div>
+              <div className="overflow-x-auto">
+                  <table className="w-full text-left">
+                      <thead className="bg-white border-b border-slate-100 text-[8px] font-black text-slate-400 uppercase tracking-widest">
+                          <tr>
+                              <th className="p-8">Guest Name</th>
+                              <th className="p-8">Target Event</th>
+                              <th className="p-8">Status</th>
+                              <th className="p-8">Host Agent</th>
+                              <th className="p-8 text-right">Protocol</th>
+                          </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 text-[11px] font-bold">
+                          {registrations.map(reg => (
+                              <tr key={reg.id} className="hover:bg-slate-50 transition-colors group">
+                                  <td className="p-8">
+                                      <div className="font-black text-slate-900 uppercase tracking-tight">{reg.contactName}</div>
+                                      <div className="text-[8px] text-slate-400 uppercase font-black mt-1">Ref: {reg.contactId}</div>
+                                  </td>
+                                  <td className="p-8 text-slate-600 uppercase italic">
+                                      {events.find(e => e.id === reg.eventId)?.name}
+                                  </td>
+                                  <td className="p-8">
+                                      <span className="bg-emerald-50 text-emerald-700 px-2.5 py-1 rounded-full text-[8px] font-black uppercase border border-emerald-100">{reg.status}</span>
+                                  </td>
+                                  <td className="p-8 text-slate-400 font-bold uppercase">{reg.invitedByAgentId.split('@')[0]}</td>
+                                  <td className="p-8 text-right">
+                                      <button 
+                                        onClick={() => handleSendReminder(reg.id)}
+                                        disabled={isProcessing === reg.id}
+                                        className="bg-indigo-600 text-white px-5 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest shadow-xl hover:bg-indigo-700 active:scale-95 transition-all flex items-center gap-2 ml-auto"
+                                      >
+                                          {isProcessing === reg.id ? <Loader2 size={12} className="animate-spin"/> : <Zap size={12}/>}
+                                          AI Reminder
+                                      </button>
+                                  </td>
+                              </tr>
+                          ))}
+                      </tbody>
+                  </table>
+              </div>
+          </div>
+      )}
 
-        <div className="bg-white rounded-[2rem] border border-slate-200 shadow-sm overflow-hidden">
-            <div className="p-6 border-b border-slate-100 bg-slate-50/50 flex items-center gap-4">
-                <div className="relative flex-1">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-300 w-3 h-3" />
-                    <input type="text" placeholder="FILTER GUESTS..." className="w-full pl-9 pr-4 py-2 border border-slate-100 rounded-xl text-[9px] font-black uppercase tracking-widest outline-none focus:ring-1 focus:ring-indigo-500" />
-                </div>
-                <button className="bg-white border border-slate-200 p-2 rounded-xl text-slate-400"><Filter size={16}/></button>
-            </div>
-            <div className="divide-y divide-slate-100">
-                {registrations.filter(r => r.invitedByAgentId === user?.email).map(reg => (
-                    <div key={reg.id} className="p-6 flex items-center justify-between hover:bg-slate-50 transition-all group">
-                        <div className="flex items-center gap-4">
-                            <div className="w-12 h-12 rounded-2xl bg-indigo-50 flex items-center justify-center font-black text-indigo-600 text-sm border border-indigo-100">
-                                {reg.contactName.split(' ').map(n => n[0]).join('')}
-                            </div>
-                            <div>
-                                <h4 className="font-black text-slate-800 uppercase tracking-tight">{reg.contactName}</h4>
-                                <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest mt-1">
-                                    Status: <span className="text-emerald-600">{reg.status}</span> • {reg.timestamp}
-                                </p>
-                            </div>
-                        </div>
-                        <div className="flex gap-3">
-                            <button 
-                                onClick={() => handleSendReminder(reg.id)}
-                                className="px-5 py-2 bg-indigo-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-indigo-700 shadow-lg active:scale-95 transition-all flex items-center gap-2"
-                            >
-                                <Bot size={14}/> Send AI Reminder
-                            </button>
-                            <button className="p-2 border border-slate-200 rounded-xl text-slate-400 hover:text-indigo-600 transition-all"><MessageSquare size={16}/></button>
-                        </div>
-                    </div>
-                ))}
-            </div>
-        </div>
-    </div>
-  );
-
-  const renderClientView = () => (
-    <div className="space-y-8 animate-fade-in">
-        <div className="bg-indigo-600 rounded-[2.5rem] p-10 text-white shadow-2xl relative overflow-hidden border-b-8 border-indigo-900">
-            <div className="absolute right-0 top-0 p-12 opacity-10 rotate-12"><Calendar size={180}/></div>
-            <div className="relative z-10 max-w-xl">
-                <h3 className="text-4xl font-black italic uppercase tracking-tighter mb-4 leading-none">Your Next <br/> Experience.</h3>
-                <p className="text-indigo-100 text-lg font-medium opacity-90 leading-relaxed mb-8">Elevate your real estate intelligence with our curated private events and digital webinars.</p>
-                <button className="bg-white text-indigo-900 px-8 py-4 rounded-2xl font-black uppercase text-xs tracking-[0.2em] shadow-2xl hover:scale-105 active:scale-95 transition-all flex items-center gap-3">
-                    View All Calendar Slots <ArrowRight size={18}/>
-                </button>
-            </div>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            {events.map(e => (
-                <div key={e.id} className="bg-white rounded-[2.5rem] border border-slate-200 shadow-lg overflow-hidden flex flex-col group hover:border-indigo-400 transition-all">
-                    <div className="p-8 border-b border-slate-50 flex-1">
-                        <div className="flex justify-between items-start mb-6">
-                            <div className={`p-4 rounded-3xl ${e.type === 'Webinar' ? 'bg-blue-50 text-blue-600' : 'bg-orange-50 text-orange-600'} shadow-sm`}>
-                                {e.type === 'Webinar' ? <Globe size={24}/> : <Landmark size={24}/>}
-                            </div>
-                            <span className="bg-slate-900 text-white text-[9px] font-black uppercase px-3 py-1 rounded-full shadow-lg">Confirmed</span>
-                        </div>
-                        <h4 className="text-2xl font-black text-slate-900 uppercase tracking-tight leading-tight italic mb-3 group-hover:text-indigo-600 transition-colors">{e.name}</h4>
-                        <p className="text-sm text-slate-500 font-medium leading-relaxed mb-6 line-clamp-2">{e.description}</p>
-                        
-                        <div className="space-y-3">
-                            <div className="flex items-center gap-3 text-slate-700 font-black text-[10px] uppercase tracking-widest">
-                                <Clock size={16} className="text-indigo-500"/> {new Date(e.dateTime).toLocaleDateString([], { month: 'long', day: 'numeric' })} @ {new Date(e.dateTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                            </div>
-                            <div className="flex items-center gap-3 text-slate-700 font-black text-[10px] uppercase tracking-widest">
-                                <MapPin size={16} className="text-indigo-500"/> {e.location}
-                            </div>
-                        </div>
-                    </div>
-                    <div className="p-6 bg-slate-50 flex gap-4">
-                        <button className="flex-1 bg-slate-900 text-white py-3.5 rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-xl hover:bg-black transition-all">Add to Calendar</button>
-                        <button 
-                            onClick={() => { setSelectedEvent(e); setIsConciergeOpen(true); }}
-                            className="bg-white border-2 border-indigo-600 text-indigo-600 px-6 py-3.5 rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-indigo-50 transition-all flex items-center gap-2"
-                        >
-                            <Bot size={16}/> Ask
-                        </button>
-                    </div>
-                </div>
-            ))}
-        </div>
-    </div>
-  );
-
-  return (
-    <div className="space-y-6 pb-20 relative">
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-slate-200 pb-4">
-        <div>
-          <h2 className="text-xl font-black text-slate-800 uppercase italic tracking-tighter">Event Hub.</h2>
-          <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest mt-1">Experiences & Engagement Management</p>
-        </div>
-        <div className="flex bg-white rounded-xl p-1 border border-slate-200 overflow-x-auto max-w-full scrollbar-hide">
-          {[
-            { id: 'hub', label: 'Explore', icon: Globe },
-            { id: 'manager', label: 'Control', icon: Settings, roles: [UserRole.ADMIN, UserRole.BROKER] },
-            { id: 'guests', label: 'Guest List', icon: Users, roles: [UserRole.AGENT, UserRole.ADMIN, UserRole.BROKER] },
-          ].filter(t => !t.roles || t.roles.includes(role)).map(tab => (
-            <button 
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id as any)}
-              className={`px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-[0.15em] flex items-center gap-2 whitespace-nowrap transition-all ${activeTab === tab.id ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-400 hover:text-slate-600 hover:bg-slate-50'}`}
-            >
-              <tab.icon size={14} /> {tab.label}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {activeTab === 'manager' && renderAdminView()}
-      {activeTab === 'guests' && renderAgentView()}
-      {activeTab === 'hub' && renderClientView()}
-
-      {/* AI EVENT CONCIERGE MODAL (Workflow 94 Client View C) */}
+      {/* AI Concierge Chat Drawer */}
       {isConciergeOpen && (
-          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md z-[500] flex items-center justify-center p-6">
-              <div className="bg-white rounded-[2.5rem] shadow-2xl w-full max-w-lg h-[600px] flex flex-col overflow-hidden animate-scale-in border border-white/20">
-                  <div className="bg-slate-900 p-8 text-white flex justify-between items-center">
+          <div className="fixed inset-0 z-[1000] bg-slate-950/40 backdrop-blur-md flex justify-end">
+              <div className="w-full max-w-md bg-white h-full shadow-2xl flex flex-col animate-slide-in-right">
+                  <div className="bg-slate-900 p-8 text-white flex justify-between items-center shrink-0 border-b-8 border-indigo-600">
                       <div className="flex items-center gap-4">
-                          <div className="w-12 h-12 bg-indigo-600 rounded-2xl flex items-center justify-center font-black text-white shadow-lg shadow-indigo-900/50">
-                              <Bot size={28}/>
-                          </div>
+                          <div className="p-3 bg-indigo-600 rounded-2xl shadow-xl"><Bot size={24}/></div>
                           <div>
-                            <h3 className="text-xl font-black uppercase tracking-tighter italic">Event Concierge.</h3>
-                            <p className="text-indigo-400 text-[9px] font-black uppercase tracking-widest mt-1">V2 Intelligence Active</p>
+                              <h3 className="text-xl font-black italic tracking-tighter uppercase leading-none">Event Concierge.</h3>
+                              <p className="text-indigo-400 text-[9px] font-bold uppercase tracking-widest mt-1.5">Context: {selectedEvent?.name}</p>
                           </div>
                       </div>
-                      <button onClick={() => { setIsConciergeOpen(false); setChatMessages([]); }} className="p-2 hover:bg-white/10 rounded-full transition-all text-white/50 hover:text-white"><X size={24}/></button>
+                      <button onClick={() => setIsConciergeOpen(false)} className="p-2 hover:bg-white/10 rounded-full transition-all"><X size={24}/></button>
                   </div>
-                  
-                  <div className="flex-1 overflow-y-auto p-8 space-y-6 bg-slate-50 scrollbar-hide">
+
+                  <div className="flex-1 overflow-y-auto p-8 bg-slate-50/50 space-y-6 scrollbar-hide">
                       {chatMessages.length === 0 && (
-                          <div className="text-center space-y-4 py-12">
-                              <Sparkles size={48} className="mx-auto text-indigo-100" />
-                              <p className="text-sm font-bold text-slate-400 uppercase tracking-widest">Ask me about parking, +1s, or agenda details.</p>
+                          <div className="h-full flex flex-col items-center justify-center text-center p-10 opacity-30">
+                              <Sparkles size={48} className="mb-4 text-indigo-200" />
+                              <p className="font-black uppercase tracking-[0.2em] text-[10px]">Awaiting Queries</p>
                           </div>
                       )}
                       {chatMessages.map((msg, i) => (
                           <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'} animate-fade-in-up`}>
-                              <div className={`max-w-[85%] px-5 py-4 rounded-[1.5rem] text-sm font-medium leading-relaxed shadow-sm ${msg.role === 'user' ? 'bg-indigo-600 text-white rounded-br-none' : 'bg-white border border-slate-200 text-slate-700 rounded-bl-none'}`}>
+                              <div className={`max-w-[85%] rounded-[1.5rem] p-5 text-sm font-bold leading-relaxed shadow-sm ${
+                                  msg.role === 'user' ? 'bg-indigo-600 text-white rounded-br-none' : 'bg-white border border-slate-200 text-slate-700 rounded-bl-none'
+                              }`}>
                                   {msg.text}
                               </div>
                           </div>
                       ))}
                       {isTyping && (
                           <div className="flex justify-start">
-                              <div className="bg-white border border-slate-100 rounded-2xl p-4 shadow-sm flex gap-2">
-                                  <Loader2 className="animate-spin text-indigo-600" size={16}/>
-                                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Consulting Event FAQ...</span>
+                              <div className="bg-white border border-slate-200 rounded-2xl px-4 py-2 flex items-center gap-2">
+                                  <div className="w-1.5 h-1.5 bg-indigo-400 rounded-full animate-bounce" />
+                                  <div className="w-1.5 h-1.5 bg-indigo-400 rounded-full animate-bounce delay-100" />
+                                  <div className="w-1.5 h-1.5 bg-indigo-400 rounded-full animate-bounce delay-200" />
                               </div>
                           </div>
                       )}
                       <div ref={chatEndRef} />
                   </div>
 
-                  <div className="p-6 bg-white border-t border-slate-100 flex gap-3">
-                      <input 
-                        type="text" 
-                        value={chatInput}
-                        onChange={e => setChatInput(e.target.value)}
-                        onKeyDown={e => e.key === 'Enter' && handleAskConcierge()}
-                        placeholder="ASK CONCIERGE..." 
-                        className="flex-1 bg-slate-50 border-none rounded-2xl px-5 py-4 text-xs font-bold focus:ring-2 focus:ring-indigo-500 outline-none"
-                      />
-                      <button 
-                        onClick={handleAskConcierge}
-                        className="bg-indigo-600 text-white p-4 rounded-2xl shadow-xl hover:bg-indigo-700 active:scale-95 transition-all"
-                      >
-                          <Send size={20}/>
-                      </button>
+                  <div className="p-8 bg-white border-t border-slate-100 shrink-0">
+                      <div className="flex gap-2">
+                          <input 
+                            value={chatInput}
+                            onChange={e => setChatInput(e.target.value)}
+                            onKeyDown={e => e.key === 'Enter' && handleAskConcierge()}
+                            placeholder="Ask about location, parking, or details..."
+                            className="flex-1 bg-slate-50 border-none rounded-2xl px-6 py-4 text-xs font-bold outline-none focus:ring-2 focus:ring-indigo-500 transition-all shadow-inner"
+                          />
+                          <button onClick={handleAskConcierge} className="bg-indigo-600 text-white p-4 rounded-2xl shadow-xl hover:bg-indigo-700 transition-all active:scale-95"><Send size={20}/></button>
+                      </div>
                   </div>
               </div>
           </div>

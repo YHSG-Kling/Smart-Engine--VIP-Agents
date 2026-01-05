@@ -1,7 +1,12 @@
+
 import React from 'react';
 import { MoreHorizontal, Plus } from 'lucide-react';
 
-const DealDesk: React.FC = () => {
+interface DealDeskProps {
+  initialDealId?: string;
+}
+
+const DealDesk: React.FC<DealDeskProps> = ({ initialDealId }) => {
   const stages = [
     { id: 'new', title: 'New Leads', color: 'bg-slate-100' },
     { id: 'showing', title: 'Showings', color: 'bg-blue-50' },
@@ -37,7 +42,7 @@ const DealDesk: React.FC = () => {
               </div>
               <div className="p-3 space-y-3 flex-1 overflow-y-auto">
                 {deals.filter(d => d.stage === stage.id).map(deal => (
-                  <div key={deal.id} className="bg-white p-4 rounded-lg shadow-sm border border-slate-200 cursor-pointer hover:shadow-md transition-shadow relative group">
+                  <div key={deal.id} className={`bg-white p-4 rounded-lg shadow-sm border border-slate-200 cursor-pointer hover:shadow-md transition-shadow relative group ${initialDealId === deal.id.toString() ? 'ring-2 ring-indigo-500' : ''}`}>
                     <div className="flex justify-between items-start mb-2">
                       <span className="font-semibold text-slate-800">{deal.name}</span>
                       <button className="text-slate-300 hover:text-slate-600"><MoreHorizontal size={16} /></button>

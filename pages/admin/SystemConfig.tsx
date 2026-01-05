@@ -117,7 +117,7 @@ const SystemConfig: React.FC = () => {
           <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Infrastructure & Rule Governance</p>
         </div>
         <div className="flex gap-3">
-            <div className="flex bg-white rounded-xl p-1 border border-slate-200 shadow-sm overflow-x-auto max-w-full scrollbar-hide shadow-sm">
+            <div className="flex bg-white rounded-xl p-1 border border-slate-200 shadow-sm overflow-x-auto max-w-full scrollbar-hide">
                 <button onClick={() => setActiveTab('scraping')} className={`px-4 py-2 rounded-lg text-[9px] font-black uppercase tracking-widest flex items-center gap-2 transition-all ${activeTab === 'scraping' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-400 hover:bg-slate-50'}`}>
                     <DatabaseZap size={14} /> Scrapers
                 </button>
@@ -181,7 +181,7 @@ const SystemConfig: React.FC = () => {
                         <Gavel size={18} className="text-indigo-600" /> Compliance Audit Log
                       </h3>
                       <button className="bg-white border border-slate-200 px-4 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest shadow-sm hover:bg-slate-50 flex items-center gap-2 transition-all">
-                          {/* Fixed: Download icon correctly used from imports */}
+                          {/* Correct Download icon used from imports */}
                           <Download size={14}/> Export Proof for Legal
                       </button>
                   </div>
@@ -207,7 +207,7 @@ const SystemConfig: React.FC = () => {
                                               {log.status}
                                           </span>
                                       </td>
-                                      {/* Fixed: Syntax error by removing double curly braces */}
+                                      {/* Corrected Syntax error in template string mapping */}
                                       <td className="p-8 italic text-slate-700">"{log.evidence}"</td>
                                       <td className="p-8">
                                           <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{log.source}</span>

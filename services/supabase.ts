@@ -1,14 +1,26 @@
-
 import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = process.env.REACT_APP_SUPABASE_URL || process.env.SUPABASE_URL || '';
-const supabaseKey = process.env.REACT_APP_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || '';
+// Access Vite environment variables
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-// If keys are missing, we can still run the app in "UI Mock Mode" 
-// but auth/storage calls will fail gracefully or we can check this flag
-export const isSupabaseConfigured = supabaseUrl && supabaseKey;
+// Validate environment variables exist
+if (!supabaseUrl) {
+  console.error('[Supabase] Missing VITE_SUPABASE_URL');
+}
 
+if (!supabaseAnonKey) {
+  console.error('[Supabase] Missing VITE_SUPABASE_ANON_KEY');
+}
+
+// Create a single supabase client for interacting with your database
 export const supabase = createClient(
-  supabaseUrl || 'https://placeholder.supabase.co', 
-  supabaseKey || 'placeholder'
+  supabaseUrl || '',
+  supabaseAnonKey || '',
+  {
+    auth: {
+      persistSession: true,
+      autoRefreshToken: true,
+    }
+  }
 );
